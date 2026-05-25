@@ -63,20 +63,22 @@ static volatile uint8_t s_file_opened = 0;
 static void submit_ecg_block(uint16_t count)
 {
     uint8_t idx = s_ecg_active;
+    uint8_t next = idx ^ 1;
     MS_BlockMsg_t msg;
+
+    if (!s_ecg_block_free[next]) {
+        s_ecg_block_drop++;
+        s_ecg_blocks[idx].count = 0;
+        return;
+    }
+
     msg.type = MS_BLOCK_ECG;
     msg.block_index = idx;
     msg.count = count;
 
     if (osMessageQueuePut(Q_MultiSensorBlockHandle, &msg, 0, 0) == osOK) {
-        uint8_t next = idx ^ 1;
-        if (s_ecg_block_free[next]) {
-            s_ecg_active = next;
-            s_ecg_block_free[idx] = 0;
-        } else {
-            s_ecg_block_drop++;
-            s_ecg_blocks[idx].count = 0;
-        }
+        s_ecg_active = next;
+        s_ecg_block_free[idx] = 0;
     } else {
         s_ecg_block_drop++;
         s_ecg_blocks[idx].count = 0;
@@ -86,20 +88,22 @@ static void submit_ecg_block(uint16_t count)
 static void submit_ppg_block(uint16_t count)
 {
     uint8_t idx = s_ppg_active;
+    uint8_t next = idx ^ 1;
     MS_BlockMsg_t msg;
+
+    if (!s_ppg_block_free[next]) {
+        s_ppg_block_drop++;
+        s_ppg_blocks[idx].count = 0;
+        return;
+    }
+
     msg.type = MS_BLOCK_PPG;
     msg.block_index = idx;
     msg.count = count;
 
     if (osMessageQueuePut(Q_MultiSensorBlockHandle, &msg, 0, 0) == osOK) {
-        uint8_t next = idx ^ 1;
-        if (s_ppg_block_free[next]) {
-            s_ppg_active = next;
-            s_ppg_block_free[idx] = 0;
-        } else {
-            s_ppg_block_drop++;
-            s_ppg_blocks[idx].count = 0;
-        }
+        s_ppg_active = next;
+        s_ppg_block_free[idx] = 0;
     } else {
         s_ppg_block_drop++;
         s_ppg_blocks[idx].count = 0;
@@ -109,20 +113,22 @@ static void submit_ppg_block(uint16_t count)
 static void submit_imu_block(uint16_t count)
 {
     uint8_t idx = s_imu_active;
+    uint8_t next = idx ^ 1;
     MS_BlockMsg_t msg;
+
+    if (!s_imu_block_free[next]) {
+        s_imu_block_drop++;
+        s_imu_blocks[idx].count = 0;
+        return;
+    }
+
     msg.type = MS_BLOCK_IMU;
     msg.block_index = idx;
     msg.count = count;
 
     if (osMessageQueuePut(Q_MultiSensorBlockHandle, &msg, 0, 0) == osOK) {
-        uint8_t next = idx ^ 1;
-        if (s_imu_block_free[next]) {
-            s_imu_active = next;
-            s_imu_block_free[idx] = 0;
-        } else {
-            s_imu_block_drop++;
-            s_imu_blocks[idx].count = 0;
-        }
+        s_imu_active = next;
+        s_imu_block_free[idx] = 0;
     } else {
         s_imu_block_drop++;
         s_imu_blocks[idx].count = 0;
@@ -256,7 +262,10 @@ void MultiSensorLogger_ResetForNewRecording(void)
     g_ecg_rec.ecg_drop_count = 0;
     g_ecg_rec.sd_write_bytes = 0;
     g_ecg_rec.sd_sync_count = 0;
+    g_ecg_rec.sd_file_opened = 0;
+    g_ecg_rec.sd_file_closed = 1;
     g_ecg_rec.start_tick = HAL_GetTick();
+    s_file_opened = 0;
 }
 
 uint8_t MultiSensorLogger_IsFileOpened(void)
@@ -271,8 +280,9 @@ static void free_imu_block(uint8_t idx) { s_imu_blocks[idx].count = 0; s_imu_blo
 
 /* ========== checked f_write helper ========== */
 static inline int sd_write_checked(FIL *fp, const char *line, UINT len,
-                                   uint32_t *ok, uint32_t *fail,
-                                   uint32_t *bytes_out)
+                                   volatile uint32_t *ok,
+                                   volatile uint32_t *fail,
+                                   volatile uint32_t *bytes_out)
 {
     UINT bw = 0;
     FRESULT res = f_write(fp, line, len, &bw);
@@ -291,17 +301,17 @@ static void write_ecg_block(FIL *fp, uint8_t idx)
 {
     ECG_Block_t *blk = &s_ecg_blocks[idx];
     char line[64];
-    UINT bw = 0;
 
     for (uint16_t i = 0; i < blk->count; i++) {
         int n = snprintf(line, sizeof(line),
             "%lu,ECG,%lu,%d,0,0,0,0,0\r\n",
             blk->timestamp_ms[i], blk->seq[i], blk->ecg[i]);
         if (n > 0 && n < (int)sizeof(line)) {
-            sd_write_checked(fp, line, (UINT)n,
-                             &s_ecg_write_ok, &s_ecg_write_fail,
-                             &g_ecg_rec.sd_write_bytes);
-            g_ecg_rec.ecg_written_count++;
+            if (sd_write_checked(fp, line, (UINT)n,
+                                 &s_ecg_write_ok, &s_ecg_write_fail,
+                                 &g_ecg_rec.sd_write_bytes)) {
+                g_ecg_rec.ecg_written_count++;
+            }
         }
     }
     free_ecg_block(idx);
@@ -311,7 +321,6 @@ static void write_ppg_block(FIL *fp, uint8_t idx)
 {
     PPG_Block_t *blk = &s_ppg_blocks[idx];
     char line[64];
-    UINT bw = 0;
 
     for (uint16_t i = 0; i < blk->count; i++) {
         int n = snprintf(line, sizeof(line),
@@ -330,7 +339,6 @@ static void write_imu_block(FIL *fp, uint8_t idx)
 {
     IMU_Block_t *blk = &s_imu_blocks[idx];
     char line[72];
-    UINT bw = 0;
 
     for (uint16_t i = 0; i < blk->count; i++) {
         int n = snprintf(line, sizeof(line),
@@ -356,7 +364,6 @@ void StartTask_MultiSensor_SDWriter(void *argument)
     (void)argument;
     MS_BlockMsg_t msg;
     FRESULT res;
-    UINT bw;
     uint32_t total_blocks = 0;
 
     MultiSensorLogger_InitQueue();
@@ -471,6 +478,7 @@ void StartTask_MultiSensor_SDWriter(void *argument)
         /* 不调用 f_mount(NULL)，避免影响 PPGDiagWriter 等持有文件的任务 */
 
         s_file_opened = 0;
+        g_ecg_rec.sd_file_opened = 0;
         g_ecg_rec.sd_file_closed = 1;
         g_ecg_rec.stop_tick = HAL_GetTick();
         g_ecg_rec.state = ECG_REC_STOPPED;

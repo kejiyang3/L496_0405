@@ -115,9 +115,8 @@ ISR 只做: 累加 irq_count + 通知任务。不读 I2C/SPI/SD。
 | `Core/Inc/sensor_record.h` | `SensorRecord_t` with ECG/PPG/IMU/PPG_INT_DIAG union types |
 | `Core/Inc/app_log.h` | USB logging gate: `USB_LOG_ENABLE` — set 1 for diagnostic prints |
 | `App/LVGL/app_lvgl.c` | LVGL 2-page UI with PPG diag labels |
-| `Core/Inc/FreeRTOSConfig.h` | Stack sizes, priorities, heap: 61440 bytes |
+| `Core/Inc/FreeRTOSConfig.h` | Stack sizes, priorities, heap: 81920 bytes |
 | `CMakeLists.txt` | Build config (root = real build) |
-| `code/CMakeLists.txt` | Build config copy for GitHub publishing |
 
 ### Debug Macros
 - `ICM_INT_LINE_PULLDOWN_TEST_ENABLE` (`main.h`) — set `1` for PH1 open-drain pulldown test (2s LOW/2s HIGH loop before RTOS)
@@ -130,6 +129,8 @@ ISR 只做: 累加 irq_count + 通知任务。不读 I2C/SPI/SD。
 - `-Wunused-variable` in `lv_port_indev.c`
 
 ### Python Tools
-- `python/readECG.py` — Read binary ECG data, plot time + frequency domain
-- `python/stm32_cdc_monitor.py` — USB CDC serial capture
-- `python/visualize_ecg.py` — Real-time plotting
+- `python/analyze_ecg.py` - Batch/single ECG CSV analysis and reports
+- `python/plot_ecg_folder.py` - Quick folder-level ECG CSV plotting
+- `python/check_ecg_cal_1hz.py` - 1Hz calibration CSV check
+- `python/stm32_cdc_monitor.py` - USB CDC serial capture with reconnect
+- `python/stm32_simple_monitor.py` - Minimal USB CDC serial monitor

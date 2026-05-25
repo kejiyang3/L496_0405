@@ -46,6 +46,10 @@ cmake/
 # Runtime output
 Data/
 stm32_log.txt
+python/*.png
+python/*.csv
+python/ecg_plots/
+python/ecg_analysis/
 
 # Backup / temporary
 *.backup

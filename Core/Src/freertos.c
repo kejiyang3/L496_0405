@@ -80,6 +80,28 @@ volatile uint8_t g_ppg_fifo_wr  = 0;  /* FIFO_WR_POINTER & 0x1F */
 volatile uint8_t g_ppg_fifo_rd  = 0;  /* FIFO_RD_POINTER & 0x1F */
 volatile uint8_t g_ppg_fifo_ov  = 0;  /* FIFO_OV_COUNTER & 0x1F */
 volatile uint8_t g_ppg_mode     = 0;  /* MODE_CONFIGURATION */
+
+/* Custom tasks created from USER CODE sections so CubeMX regeneration keeps them. */
+osThreadId_t Task_MultiSensor_SDWriterHandle;
+const osThreadAttr_t Task_MultiSensor_SDWriter_attributes = {
+  .name = "Task_MSWriter",
+  .stack_size = 2048 * 4,
+  .priority = (osPriority_t) osPriorityBelowNormal,
+};
+
+osThreadId_t Task_ECG_USBDumpHandle;
+const osThreadAttr_t Task_ECG_USBDump_attributes = {
+  .name = "Task_ECG_USBDump",
+  .stack_size = 1024 * 4,
+  .priority = (osPriority_t) osPriorityLow,
+};
+
+osThreadId_t Task_PPGDiagWriterHandle;
+const osThreadAttr_t Task_PPGDiagWriter_attributes = {
+  .name = "Task_PPGDiagWr",
+  .stack_size = 512 * 4,
+  .priority = (osPriority_t) osPriorityBelowNormal7,
+};
 /* USER CODE END Variables */
 
 /* Definitions for Task_LVGL */
@@ -131,26 +153,6 @@ const osThreadAttr_t Task_IMU_attributes = {
   .stack_size = 1024 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
-/* Definitions for Task_MultiSensor_SDWriter */
-osThreadId_t Task_MultiSensor_SDWriterHandle;
-const osThreadAttr_t Task_MultiSensor_SDWriter_attributes = {
-  .name = "Task_MSWriter",
-  .stack_size = 2048 * 4,
-  .priority = (osPriority_t) osPriorityBelowNormal,
-};
-/* Definitions for Task_ECG_USBDump */
-osThreadId_t Task_ECG_USBDumpHandle;
-const osThreadAttr_t Task_ECG_USBDump_attributes = {
-  .name = "Task_ECG_USBDump",
-  .stack_size = 1024 * 4,
-  .priority = (osPriority_t) osPriorityLow,
-};
-/* Definitions for Task_PPGDiagWriter */
-const osThreadAttr_t Task_PPGDiagWriter_attributes = {
-  .name = "Task_PPGDiagWr",
-  .stack_size = 512 * 4,
-  .priority = (osPriority_t) osPriorityBelowNormal7,
-};
 /* Definitions for Mtx_SDCard */
 osMutexId_t Mtx_SDCardHandle;
 const osMutexAttr_t Mtx_SDCard_attributes = {
@@ -170,7 +172,6 @@ void StartTask_Button(void *argument);
 void StartTask_PPG(void *argument);
 void StartTask_IMU(void *argument);
 
-extern void MX_USB_DEVICE_Init(void);
 void MX_FREERTOS_Init(void);
 
 /**
@@ -200,23 +201,24 @@ void MX_FREERTOS_Init(void) {
   /* Create the thread(s) */
   /* creation of Task_LVGL */
   Task_LVGLHandle = osThreadNew(StartTask_LVGL, NULL, &Task_LVGL_attributes);
-  if (Task_LVGLHandle == NULL) g_task_create_error |= (1UL << 0);
 
   /* creation of Task_Sensor */
   Task_SensorHandle = osThreadNew(StartTask_Sensor, NULL, &Task_Sensor_attributes);
-  if (Task_SensorHandle == NULL) g_task_create_error |= (1UL << 1);
 
   /* creation of Task_Button */
   Task_ButtonHandle = osThreadNew(StartTask_Button, NULL, &Task_Button_attributes);
-  if (Task_ButtonHandle == NULL) g_task_create_error |= (1UL << 5);
 
-  /* USER CODE BEGIN RTOS_THREADS */
   /* PPG 采集任务 */
   Task_PPGHandle = osThreadNew(StartTask_PPG, NULL, &Task_PPG_attributes);
-  if (Task_PPGHandle == NULL) g_task_create_error |= (1UL << 6);
 
   /* IMU 采集任务 */
   Task_IMUHandle = osThreadNew(StartTask_IMU, NULL, &Task_IMU_attributes);
+
+  /* USER CODE BEGIN RTOS_THREADS */
+  if (Task_LVGLHandle == NULL) g_task_create_error |= (1UL << 0);
+  if (Task_SensorHandle == NULL) g_task_create_error |= (1UL << 1);
+  if (Task_ButtonHandle == NULL) g_task_create_error |= (1UL << 5);
+  if (Task_PPGHandle == NULL) g_task_create_error |= (1UL << 6);
   if (Task_IMUHandle == NULL) g_task_create_error |= (1UL << 7);
 
   /* 多传感器 SD Writer (取代旧的 ECG_SDWriter) */
@@ -224,7 +226,8 @@ void MX_FREERTOS_Init(void) {
   if (Task_MultiSensor_SDWriterHandle == NULL) g_task_create_error |= (1UL << 2);
 
   /* PPG INT 诊断 SD Writer */
-  osThreadNew(StartTask_PPGDiagWriter, NULL, &Task_PPGDiagWriter_attributes);
+  Task_PPGDiagWriterHandle = osThreadNew(StartTask_PPGDiagWriter, NULL, &Task_PPGDiagWriter_attributes);
+  if (Task_PPGDiagWriterHandle == NULL) g_task_create_error |= (1UL << 8);
 
   /* USB Dump Task — V1 不创建 */
   /* USER CODE END RTOS_THREADS */
@@ -234,7 +237,6 @@ void MX_FREERTOS_Init(void) {
 /* USER CODE END Header_StartTask_LVGL */
 void StartTask_LVGL(void *argument)
 {
-  MX_USB_DEVICE_Init();
   /* USER CODE BEGIN StartTask_LVGL */
   (void)argument;
 
@@ -415,7 +417,8 @@ void StartTask_Sensor(void *argument)
     /* PPG INT 诊断 SD 采集 — 每 200ms 记录一条到 ppg_int_diag.csv */
     static uint32_t last_ppg_diag_tick = 0;
     static uint32_t ppg_diag_seq = 0;
-    if (HAL_GetTick() - last_ppg_diag_tick >= 200) {
+    if (g_ecg_rec.state != ECG_REC_RECORDING &&
+        HAL_GetTick() - last_ppg_diag_tick >= 200) {
       last_ppg_diag_tick = HAL_GetTick();
       APP_Log_PPG_INT_Diag_To_SD(ppg_diag_seq++);
     }
