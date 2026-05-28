@@ -1,0 +1,26 @@
+[18:24:04.415] ✅ 连接成功，开始接收数据
+[18:24:05.144] ⚠ 串口异常: ClearCommError failed (PermissionError(13, '设备不识别此命令。', None, 22))
+[18:24:05.145] ⚠ 连接断开，等待重连...
+[18:24:05.434] ❌ 连接失败，重试中...
+[18:24:08.780] ❌ 连接失败，重试中...
+[18:24:09.922] ✅ 连接成功，开始接收数据
+[18:24:09.922] 📈 累计重连次数: 2
+[18:24:12.246] [ECG_V1] Sensor task started
+[18:24:12.246] [SENSOR] before MAX30003_Init
+[18:24:12.246] [SENSOR] after MAX30003_Init
+[18:24:12.309] [SENSOR] after MAX30003_INIT_DONE log
+[18:24:12.309] [SDDBG] new log opened path=0:/log_001.txt
+[18:24:12.309] [MS_SD] mount begin file=0:/ecg_001.csv
+[18:24:12.340] [MS_SD] mount ok
+[18:24:12.340] [MS_SD] open begin file=0:/ecg_001.csv
+[18:24:12.340] [MS_SD] open ok
+[18:24:12.340] [MS_SD] header ok bw=41
+[18:24:12.388] nc res=0
+[18:24:12.388] [MS_SD] file opened and released
+[18:24:53.018] ⚠ 串口异常: ClearCommError failed (PermissionError(13, '设备不识别此命令。', None, 22))
+[18:24:53.018] [MAX
+[18:24:53.018] 📊 本次连接统计: 12行数据
+[18:24:53.018] ⚠ 连接断开，等待重连...
+[18:24:53.282] ❌ 连接失败，重试中...
+[18:24:53.982] ✅ 连接成功，开始接收数据
+[18:24:53.982] 📈 累计重连次数: 3

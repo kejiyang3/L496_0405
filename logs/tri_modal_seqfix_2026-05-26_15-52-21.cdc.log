@@ -1,0 +1,20 @@
+[15:52:22.625] ✅ 连接成功，开始接收数据
+[15:52:36.091] ✅ 连接成功，开始接收数据
+[15:52:36.091] 📈 累计重连次数: 2
+[15:52:38.398] [SYS] RTOS Started, USB CDC Ready!
+[15:52:38.398] [ECG_V1] Sensor task started
+[15:52:38.663] [SENSOR_INIT]
+[15:52:38.663] [MAX30102] I2C CALL FAIL, DEVICE NOT FOUND
+[15:52:38.663] [ICM20948] INIT OK (WHO_AM_I + 10x probe passed)
+[15:52:38.663] [/SENSOR_INIT]
+[15:52:38.663] [SENSOR] before MAX30003_Init
+[15:52:38.663] [MAX30003] Initializing...
+[15:52:38.663] [MAX30003_INIT] step=cs
+[15:52:38.694] [MAX30003_INIT] step=sw_reset
+[15:52:38.694] [MAX30003_INIT] step=status1
+[15:52:38.694] [MAX30003_INIT] step=status2
+[15:52:38.694] [MAX30003_INIT] step=info1
+[15:52:38.709] step=info2
+[15:52:38.709] [MAX30003_INIT] step=info3
+[15:52:38.709] [MAX30003] INFO=0x513639
+[15:52:38.710] [MAX30003_INIT] step=cnfg_ecg

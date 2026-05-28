@@ -1,0 +1,20 @@
+[13:45:15.400] ❌ 连接失败，重试中...
+[13:45:16.053] ✅ 连接成功，开始接收数据
+[13:45:18.353] ⚠ 串口异常: ClearCommError failed (PermissionError(13, '设备不识别此命令。', None, 22))
+[13:45:18.354] ⚠ 连接断开，等待重连...
+[13:45:18.635] ❌ 连接失败，重试中...
+[13:45:21.915] ❌ 连接失败，重试中...
+[13:45:25.245] ❌ 连接失败，重试中...
+[13:45:28.578] ❌ 连接失败，重试中...
+[13:45:30.191] ✅ 连接成功，开始接收数据
+[13:45:30.191] 📈 累计重连次数: 2
+[13:45:32.854] [SENSOR_INIT]
+[13:45:32.854] [MAX30102] I2C CALL OK, INIT OK
+[13:45:32.870] [ICM20948] INIT OK (WHO_AM_I + 10x probe passed)
+[13:45:32.870] [/SENSOR_INIT]
+[13:45:32.902] [ICM_INT_FLAG_PIN_CHECK_BEGIN]
+[13:45:32.950] ICM_CFG_CHECK,CFG=0xE0,EN1=0x01
+[13:45:32.966] ICM_BEFORE_WAIT,PIN=0,IRQ=2
+[13:45:33.110] ICM_FLAG_PIN_RESULT,PIN_BEFORE_ST1=0,ST1=0x01,PIN_AFTER_ST1=1,IRQ_BEFORE=2,IRQ_AFTER=2
+[13:45:33.126] [ICM_INT_FLAG_PIN_CHECK_END]
+[13:45:33.443] [ECG_CTRL] START file=0:/ecg_001.csv tick=3938

@@ -1,0 +1,27 @@
+[14:26:42.405] ❌ 连接失败，重试中...
+[14:26:43.064] ✅ 连接成功，开始接收数据
+[14:26:45.212] ⚠ 串口异常: ClearCommError failed (PermissionError(13, '设备不识别此命令。', None, 22))
+[14:26:45.212] ⚠ 连接断开，等待重连...
+[14:26:45.503] ❌ 连接失败，重试中...
+[14:26:48.599] ❌ 连接失败，重试中...
+[14:26:51.911] ❌ 连接失败，重试中...
+[14:26:55.237] ❌ 连接失败，重试中...
+[14:26:57.328] ✅ 连接成功，开始接收数据
+[14:26:57.328] 📈 累计重连次数: 2
+[14:27:00.228] [SENSOR_INIT]
+[14:27:00.228] [MAX30102] I2C CALL OK, INIT OK
+[14:27:00.228] [ICM20948] INIT OK (WHO_AM_I + 10x probe passed)
+[14:27:00.228] [/SENSOR_INIT]
+[14:27:00.276] [ICM_INT_FLAG_PIN_CHECK_BEGIN]
+[14:27:00.323] ICM_CFG_CHECK,CFG=0xE0,EN1=0x01
+[14:27:00.339] ICM_BEFORE_WAIT,PIN=0,IRQ=2
+[14:27:00.477] ICM_FLAG_PIN_RESULT,PIN_BEFORE_ST1=0,ST1=0x01,PIN_AFTER_ST1=1,IRQ_BEFORE=2,IRQ_AFTER=2
+[14:27:00.493] [ICM_INT_FLAG_PIN_CHECK_END]
+[14:27:00.811] [ECG_CTRL] START file=0:/ecg_001.csv tick=3963
+[14:27:00.811] [LOOP] tick=3963
+[14:27:00.827] [LOOP] tick=3970
+[14:27:00.827] [LOOP] tick=3974
+[14:27:00.859] [LOOP] tick=3991
+[14:27:00.875] [LOOP] tick=3996
+[14:27:00.891] [LOOP] tick=4004
+[14:27:00.907] [LOOP] tick=4013

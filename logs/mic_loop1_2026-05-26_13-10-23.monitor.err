@@ -1,0 +1,19 @@
+Traceback (most recent call last):
+  File "C:\Users\ycs\OneDrive\桌面\codexppt\L496_0405\python\stm32_cdc_monitor.py", line 489, in main
+    monitor.run()
+  File "C:\Users\ycs\OneDrive\桌面\codexppt\L496_0405\python\stm32_cdc_monitor.py", line 399, in run
+    self.reconnect_loop()
+  File "C:\Users\ycs\OneDrive\桌面\codexppt\L496_0405\python\stm32_cdc_monitor.py", line 336, in reconnect_loop
+    self.log_message(f"\u2705 连接成功，开始接收数据", timestamp=True)
+  File "C:\Users\ycs\OneDrive\桌面\codexppt\L496_0405\python\stm32_cdc_monitor.py", line 233, in log_message
+    print(output, end='')
+UnicodeEncodeError: 'gbk' codec can't encode character '\u2705' in position 15: illegal multibyte sequence
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\ycs\OneDrive\桌面\codexppt\L496_0405\python\stm32_cdc_monitor.py", line 496, in <module>
+    main()
+  File "C:\Users\ycs\OneDrive\桌面\codexppt\L496_0405\python\stm32_cdc_monitor.py", line 491, in main
+    print(f"\n\u2717 程序运行失败: {e}")
+UnicodeEncodeError: 'gbk' codec can't encode character '\u2717' in position 2: illegal multibyte sequence

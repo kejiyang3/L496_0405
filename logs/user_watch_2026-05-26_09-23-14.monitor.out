@@ -1,0 +1,106 @@
+
+============================================================
+STM32 USB CDC Monitor - 完美解决方案
+============================================================
+开始时间: 2026-05-26 09:23:14
+目标端口: COM12
+波特率: 115200
+日志文件: logs\user_watch_2026-05-26_09-23-14.cdc.log
+============================================================
+提示: 按 Ctrl+C 退出程序
+============================================================
+
+✓ 日志文件已打开: logs\user_watch_2026-05-26_09-23-14.cdc.log (覆盖模式)
+✗ 连接时发生意外错误: <class 'OSError'> returned a result with an error set
+[09:23:14.828] ❌ 连接失败，重试中...
+✗ 连接时发生意外错误: <class 'OSError'> returned a result with an error set
+✗ 连接时发生意外错误: <class 'OSError'> returned a result with an error set
+✗ 连接时发生意外错误: <class 'OSError'> returned a result with an error set
+✗ 连接时发生意外错误: <class 'OSError'> returned a result with an error set
+✗ 连接时发生意外错误: <class 'OSError'> returned a result with an error set
+✗ 连接时发生意外错误: <class 'OSError'> returned a result with an error set
+✗ 连接时发生意外错误: <class 'OSError'> returned a result with an error set
+[09:23:18.025] ❌ 连接失败，重试中...
+✗ 连接时发生意外错误: <class 'OSError'> returned a result with an error set
+✗ 连接时发生意外错误: <class 'OSError'> returned a result with an error set
+✗ 连接时发生意外错误: <class 'OSError'> returned a result with an error set
+✗ 连接时发生意外错误: <class 'OSError'> returned a result with an error set
+✗ 连接时发生意外错误: <class 'OSError'> returned a result with an error set
+✗ 连接时发生意外错误: <class 'OSError'> returned a result with an error set
+✗ 连接时发生意外错误: <class 'OSError'> returned a result with an error set
+[09:23:21.203] ❌ 连接失败，重试中...
+✗ 连接时发生意外错误: <class 'OSError'> returned a result with an error set
+✗ 连接时发生意外错误: <class 'OSError'> returned a result with an error set
+✗ 连接时发生意外错误: <class 'OSError'> returned a result with an error set
+✗ 连接时发生意外错误: <class 'OSError'> returned a result with an error set
+✗ 连接时发生意外错误: <class 'OSError'> returned a result with an error set
+✗ 连接时发生意外错误: <class 'OSError'> returned a result with an error set
+✗ 连接时发生意外错误: <class 'OSError'> returned a result with an error set
+[09:23:24.383] ❌ 连接失败，重试中...
+✗ 连接时发生意外错误: <class 'OSError'> returned a result with an error set
+✗ 连接时发生意外错误: <class 'OSError'> returned a result with an error set
+✗ 连接时发生意外错误: <class 'OSError'> returned a result with an error set
+✗ 连接时发生意外错误: <class 'OSError'> returned a result with an error set
+✗ 连接时发生意外错误: <class 'OSError'> returned a result with an error set
+✗ 连接时发生意外错误: <class 'OSError'> returned a result with an error set
+✗ 连接时发生意外错误: <class 'OSError'> returned a result with an error set
+[09:23:27.580] ❌ 连接失败，重试中...
+✗ 连接时发生意外错误: <class 'OSError'> returned a result with an error set
+✗ 连接时发生意外错误: <class 'OSError'> returned a result with an error set
+✗ 连接时发生意外错误: <class 'OSError'> returned a result with an error set
+✗ 连接时发生意外错误: <class 'OSError'> returned a result with an error set
+✗ 连接时发生意外错误: <class 'OSError'> returned a result with an error set
+✗ 连接时发生意外错误: <class 'OSError'> returned a result with an error set
+✗ 连接时发生意外错误: <class 'OSError'> returned a result with an error set
+[09:23:30.756] ❌ 连接失败，重试中...
+✗ 连接时发生意外错误: <class 'OSError'> returned a result with an error set
+✗ 连接时发生意外错误: <class 'OSError'> returned a result with an error set
+✗ 连接时发生意外错误: <class 'OSError'> returned a result with an error set
+✗ 连接时发生意外错误: <class 'OSError'> returned a result with an error set
+✗ 连接时发生意外错误: <class 'OSError'> returned a result with an error set
+✗ 连接时发生意外错误: <class 'OSError'> returned a result with an error set
+✗ 连接时发生意外错误: <class 'OSError'> returned a result with an error set
+[09:23:33.927] ❌ 连接失败，重试中...
+✗ 连接时发生意外错误: <class 'OSError'> returned a result with an error set
+✗ 连接时发生意外错误: <class 'OSError'> returned a result with an error set
+✗ 连接时发生意外错误: <class 'OSError'> returned a result with an error set
+✗ 连接时发生意外错误: <class 'OSError'> returned a result with an error set
+✗ 连接时发生意外错误: <class 'OSError'> returned a result with an error set
+✗ 连接时发生意外错误: <class 'OSError'> returned a result with an error set
+✗ 连接时发生意外错误: <class 'OSError'> returned a result with an error set
+[09:23:37.110] ❌ 连接失败，重试中...
+✗ 连接时发生意外错误: <class 'OSError'> returned a result with an error set
+✗ 连接时发生意外错误: <class 'OSError'> returned a result with an error set
+✗ 连接时发生意外错误: <class 'OSError'> returned a result with an error set
+✗ 连接时发生意外错误: <class 'OSError'> returned a result with an error set
+✗ 连接时发生意外错误: <class 'OSError'> returned a result with an error set
+✗ 连接时发生意外错误: <class 'OSError'> returned a result with an error set
+✗ 连接时发生意外错误: <class 'OSError'> returned a result with an error set
+[09:23:40.290] ❌ 连接失败，重试中...
+✗ 连接时发生意外错误: <class 'OSError'> returned a result with an error set
+✗ 连接时发生意外错误: <class 'OSError'> returned a result with an error set
+✗ 连接时发生意外错误: <class 'OSError'> returned a result with an error set
+✗ 连接时发生意外错误: <class 'OSError'> returned a result with an error set
+✗ 连接时发生意外错误: <class 'OSError'> returned a result with an error set
+✗ 连接时发生意外错误: <class 'OSError'> returned a result with an error set
+✗ 连接时发生意外错误: <class 'OSError'> returned a result with an error set
+[09:23:43.460] ❌ 连接失败，重试中...
+正在连接 COM12 (波特率: 115200)...
+✗ 连接失败: Cannot configure port, something went wrong. Original message: OSError(22, '指定不存在的设备。', None, 433)
+[09:25:25.487] ❌ 连接失败，重试中...
+正在连接 COM12 (波特率: 115200)...
+✗ 连接失败: could not open port 'COM12': FileNotFoundError(2, '系统找不到指定的文件。', None, 2)
+正在连接 COM12 (波特率: 115200)...
+✗ 连接失败: could not open port 'COM12': FileNotFoundError(2, '系统找不到指定的文件。', None, 2)
+正在连接 COM12 (波特率: 115200)...
+✗ 连接失败: could not open port 'COM12': FileNotFoundError(2, '系统找不到指定的文件。', None, 2)
+正在连接 COM12 (波特率: 115200)...
+✗ 连接失败: could not open port 'COM12': FileNotFoundError(2, '系统找不到指定的文件。', None, 2)
+正在连接 COM12 (波特率: 115200)...
+✗ 连接失败: could not open port 'COM12': FileNotFoundError(2, '系统找不到指定的文件。', None, 2)
+正在连接 COM12 (波特率: 115200)...
+✗ 连接失败: could not open port 'COM12': FileNotFoundError(2, '系统找不到指定的文件。', None, 2)
+正在连接 COM12 (波特率: 115200)...
+✗ 连接失败: could not open port 'COM12': FileNotFoundError(2, '系统找不到指定的文件。', None, 2)
+[09:25:28.716] ❌ 连接失败，重试中...
+正在连接 COM12 (波特率: 115200)...

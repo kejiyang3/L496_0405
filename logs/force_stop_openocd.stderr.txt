@@ -1,0 +1,361 @@
+Open On-Chip Debugger 0.12.0+dev-00608-gd8ed48fef (2025-02-06-11:17) [https://github.com/STMicroelectronics/OpenOCD]
+Licensed under GNU GPL v2
+For bug reports, read
+	http://openocd.org/doc/doxygen/bugs.html
+Info : auto-selecting first available session transport "dapdirect_swd". To override use 'transport select <transport>'.
+Info : Listening on port 6666 for tcl connections
+Info : Listening on port 4444 for telnet connections
+Info : STLINK V2J47S7 (API v2) VID:PID 0483:3748
+Info : Target voltage: 1.189676
+Error: target voltage may be too low for reliable debugging
+Info : clock speed 4000 kHz
+Info : stlink_dap_op_connect(connect)
+Info : SWD DPIDR 0x2ba01477
+Info : [stm32l4.cpu] Cortex-M4 r0p1 processor detected
+Info : [stm32l4.cpu] target has 6 breakpoints, 4 watchpoints
+Info : [stm32l4.cpu] Examination succeed
+Info : starting gdb server for stm32l4.cpu on 3333
+Info : Listening on port 3333 for gdb connections
+Info : accepting 'gdb' connection on tcp/3333
+Info : device idcode = 0x20006461 (STM32L49/L4Axx - Rev B : 0x2000)
+Info : RDP level 0 (0xAA)
+Info : flash size = 512 KiB
+Info : flash mode : dual-bank
+Warn : GDB connection 1 on target stm32l4.cpu not halted
+undefined debug reason 8 (UNDEFINED) - target needs reset
+[stm32l4.cpu] halted due to debug-request, current mode: Thread 
+xPSR: 0x61000000 pc: 0x08011f94 psp: 0x20000cc0
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Polling target stm32l4.cpu failed, trying to reexamine
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: [stm32l4.cpu] Examination failed
+Examination failed, GDB will be halted. Polling again in 100ms
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Polling target stm32l4.cpu failed, trying to reexamine
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: [stm32l4.cpu] Examination failed
+Examination failed, GDB will be halted. Polling again in 300ms
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Polling target stm32l4.cpu failed, trying to reexamine
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: [stm32l4.cpu] Examination failed
+Examination failed, GDB will be halted. Polling again in 700ms
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Polling target stm32l4.cpu failed, trying to reexamine
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: [stm32l4.cpu] Examination failed
+Examination failed, GDB will be halted. Polling again in 1500ms
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Polling target stm32l4.cpu failed, trying to reexamine
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: [stm32l4.cpu] Examination failed
+Examination failed, GDB will be halted. Polling again in 3100ms
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Fail reading CTRL/STAT register. Force reconnect
+Error: Failed to read memory and, additionally, failed to find out where
+Error: Error on socket 'GDB': WSAGetLastError==10054, message: 远程主机强迫关闭了一个现有的连接。
+.
+shutdown

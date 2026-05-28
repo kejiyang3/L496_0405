@@ -386,6 +386,9 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
       vTaskNotifyGiveFromISR(ImuTaskHandle, &xHigherPriorityTaskWoken);
     }
   }
+  else if (GPIO_Pin == INT_TOUCH_Pin) {
+    touch_int_flag = 1U;
+  }
 
   portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 }

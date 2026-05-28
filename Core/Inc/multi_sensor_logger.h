@@ -8,17 +8,18 @@ extern "C" {
 #include "main.h"
 #include <stdint.h>
 #include "cmsis_os.h"
+#include "record_feature_flags.h"
 
 /* ========== 采样率与 2 秒 Block 容量 ========== */
 #define LOG_BLOCK_SECONDS       2
 
 #define ECG_SAMPLE_RATE_HZ      512
-#define PPG_SAMPLE_RATE_HZ      200
-#define IMU_SAMPLE_RATE_HZ      51
+#define PPG_SAMPLE_RATE_HZ      RECORD_PPG_SAMPLE_RATE_HZ
+#define IMU_SAMPLE_RATE_HZ      104
 
 #define ECG_BLOCK_SAMPLES       (ECG_SAMPLE_RATE_HZ * LOG_BLOCK_SECONDS)   /* 1024 */
 #define PPG_BLOCK_SAMPLES       (PPG_SAMPLE_RATE_HZ * LOG_BLOCK_SECONDS)   /* 400 */
-#define IMU_BLOCK_SAMPLES       104   /* ~2s @ 51.14Hz */
+#define IMU_BLOCK_SAMPLES       (IMU_SAMPLE_RATE_HZ * LOG_BLOCK_SECONDS)   /* ~2s @ ICM Data Ready */
 
 /* ========== Block 结构体 ========== */
 
@@ -63,6 +64,24 @@ typedef struct {
     uint16_t count;         /* 有效样本数 */
 } MS_BlockMsg_t;
 
+typedef struct {
+    uint32_t ecg_samples;
+    uint32_t ecg_write_ok;
+    uint32_t ecg_write_fail;
+    uint32_t ecg_block_drop;
+    uint32_t ppg_samples;
+    uint32_t ppg_write_ok;
+    uint32_t ppg_write_fail;
+    uint32_t ppg_block_drop;
+    uint32_t imu_samples;
+    uint32_t imu_write_ok;
+    uint32_t imu_write_fail;
+    uint32_t imu_block_drop;
+    uint32_t sd_write_bytes;
+    uint32_t sd_sync_count;
+    uint32_t writer_get_count;
+} MS_Stats_t;
+
 /* ========== 队列 ========== */
 extern osMessageQueueId_t Q_MultiSensorBlockHandle;
 
@@ -71,6 +90,7 @@ void MultiSensorLogger_InitQueue(void);
 void MultiSensorLogger_ResetForNewRecording(void);
 void MultiSensorLogger_RequestStopAndFlush(void);
 uint8_t MultiSensorLogger_IsFileOpened(void);
+void MultiSensorLogger_GetStats(MS_Stats_t *stats);
 
 /* Add sample 函数 */
 void MultiSensorLogger_AddECG(int16_t ecg);

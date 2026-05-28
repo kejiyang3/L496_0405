@@ -6,13 +6,15 @@
  */
 
 #include "lv_port_indev.h"
+#include "app_lvgl.h"
+#include "app_lvgl_acceptance_ui.h"
 #include "lvgl.h"
 #include <stdbool.h>
 #include "../../User/touch.h" // 引入我们自己的底层触摸驱动
-#include "../../User/Config/usb_printf.h"  // 确保引入你的串口/USB打印头文件
 
 /* External variable for wake-up touch locking */
 volatile uint8_t block_touch_flag = 0;
+extern volatile uint8_t touch_int_flag;
 
 /* 触摸手势 — 供 app_lvgl.c 读取做页面切换 */
 volatile uint8_t g_touch_gesture = 0;
@@ -38,14 +40,50 @@ static void touchpad_read(lv_indev_drv_t * indev_drv, lv_indev_data_t * data)
     static lv_coord_t last_x = 0;
     static lv_coord_t last_y = 0;
     static bool prev_pressed = false;
+    static bool swallow_until_release = false;
 
     uint16_t x, y;
     uint8_t gesture;
-    uint8_t finger = CST816_GetAction(&x, &y, &gesture);
+    uint8_t finger = 0;
+    bool irq_latched = false;
+
+    if (touch_int_flag) {
+        touch_int_flag = 0U;
+        irq_latched = true;
+        if (APP_LVGL_NotifyTouchActivity()) {
+            swallow_until_release = true;
+            data->state = LV_INDEV_STATE_REL;
+            data->point.x = last_x;
+            data->point.y = last_y;
+            prev_pressed = false;
+            return;
+        }
+    }
+
+    if (!prev_pressed &&
+        !irq_latched &&
+        HAL_GPIO_ReadPin(INT_TOUCH_GPIO_Port, INT_TOUCH_Pin) != GPIO_PIN_RESET) {
+        swallow_until_release = false;
+        data->state = LV_INDEV_STATE_REL;
+        data->point.x = last_x;
+        data->point.y = last_y;
+        return;
+    }
+
+    finger = CST816_GetAction(&x, &y, &gesture);
 
     bool is_pressed = (finger > 0);
 
     if(is_pressed) {
+        if (swallow_until_release || APP_LVGL_NotifyTouchActivity()) {
+            swallow_until_release = true;
+            data->state = LV_INDEV_STATE_REL;
+            data->point.x = last_x;
+            data->point.y = last_y;
+            prev_pressed = false;
+            return;
+        }
+
         if (block_touch_flag) {
             data->state = LV_INDEV_STATE_REL;
             data->point.x = last_x;
@@ -57,10 +95,8 @@ static void touchpad_read(lv_indev_drv_t * indev_drv, lv_indev_data_t * data)
         last_y = y;
         data->state = LV_INDEV_STATE_PR;
 
-        if (!prev_pressed) {
-            usb_printf("[Touch] DOWN X:%u Y:%u G:%u\r\n", x, y, gesture);
-        }
     } else {
+        swallow_until_release = false;
         block_touch_flag = 0;
         data->state = LV_INDEV_STATE_REL;
 
@@ -69,7 +105,6 @@ static void touchpad_read(lv_indev_drv_t * indev_drv, lv_indev_data_t * data)
             if (gesture == 0x03 || gesture == 0x04) {
                 g_touch_gesture = gesture;
             }
-            usb_printf("[Touch] UP last_x:%u last_y:%u\r\n", last_x, last_y);
         }
     }
 

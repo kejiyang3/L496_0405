@@ -7,6 +7,7 @@ extern "C" {
 
 #include "main.h"
 #include <stdint.h>
+#include "record_feature_flags.h"
 
 /* ========== 硬件引脚定义 (请根据实际硬件连接修改) ========== */
 #ifndef MAX30102_Pin
@@ -50,6 +51,14 @@ extern "C" {
 #define REVISION_ID          0xFE
 #define PART_ID              0xFF
 
+/* 低带宽稳定采集配置：MAX30102 和 ICM20948 共用 I2C3/TXS0104 时优先保证总线空闲窗口。 */
+#define MAX30102_FIFO_CONFIG_STABLE     0x5FU
+#define MAX30102_SPO2_CONFIG_50SPS_18B  0x22U
+#define MAX30102_INT_ENABLE_RECORDING   0xC0U
+#define MAX30102_EXPECTED_SAMPLE_RATE_HZ RECORD_PPG_SAMPLE_RATE_HZ
+#define MAX30102_FIFO_POINTER_SNAPSHOT_BYTES 3U
+#define MAX30102_FIFO_OV_COUNTER_MASK   0x1FU
+
 /* ========== 初始化结果 ========== */
 typedef enum {
     MAX30102_INIT_OK = 0,
@@ -79,6 +88,10 @@ ErrorStatus MAX30102_DisableInterrupts(void);
 void MAX30102_Debug_Poll_INT_Pin(void);
 
 extern volatile uint8_t max30102_int_flag;
+extern volatile uint32_t g_max30102_fifo_read_ok_count;
+extern volatile uint32_t g_max30102_fifo_read_fail_count;
+extern volatile uint32_t g_max30102_fifo_empty_count;
+extern volatile uint32_t g_max30102_fifo_ov_count;
 
 #ifdef __cplusplus
 }

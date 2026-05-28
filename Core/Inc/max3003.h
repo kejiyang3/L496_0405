@@ -8,9 +8,9 @@ extern "C" {
 #include "main.h"
 #include <stdint.h>
 
-/* ========== 片选引脚定义 ========== */
-/* 以 main.h 中 CubeMX 生成的引脚定义为准 */
-/* 用 do{...}while(0) 更安全，避免 if/else 宏展开问题 */
+/* ========== 片选引脚定�?========== */
+/* �?main.h �?CubeMX 生成的引脚定义为�?*/
+/* �?do{...}while(0) 更安全，避免 if/else 宏展开问题 */
 	
 #define ECG_CSB_LOW()   do { HAL_GPIO_WritePin(ECG_CS_GPIO_Port, ECG_CS_Pin, GPIO_PIN_RESET); } while (0)
 #define ECG_CSB_HIGH()  do { HAL_GPIO_WritePin(ECG_CS_GPIO_Port, ECG_CS_Pin, GPIO_PIN_SET);   } while (0)
@@ -18,11 +18,11 @@ extern "C" {
 /* ========== MAX30003 寄存器地址 ========== */
 /* 基本控制 */
 #define MAX30003_NO_OP        0x00  /* 空操作（No Operation，占位命令） */
-#define MAX30003_STATUS       0x01  /* 状态（只读，中断/FIFO状态） */
-#define MAX30003_EN_INT       0x02  /* 中断1使能（INTB） */
-#define MAX30003_EN_INT2      0x03  /* 中断2使能（INT2B） */
+#define MAX30003_STATUS       0x01  /* 状态（只读，中�?FIFO状态） */
+#define MAX30003_EN_INT       0x02  /* 中断1使能（INTB�?*/
+#define MAX30003_EN_INT2      0x03  /* 中断2使能（INT2B�?*/
 #define MAX30003_MNGR_INT     0x04  /* 中断管理 */
-#define MAX30003_MNGR_DYN     0x05  /* 动态管理/快速恢复 */
+#define MAX30003_MNGR_DYN     0x05  /* 动态管�?快速恢�?*/
 
 /* 控制命令 */
 #define MAX30003_SW_RST       0x08  /* 软件复位（写入触发） */
@@ -30,25 +30,27 @@ extern "C" {
 #define MAX30003_FIFO_RST     0x0A  /* FIFO复位（清空） */
 #define MAX30003_INFO         0x0F  /* 器件信息（版本ID/芯片ID，只读） */
 
-/* 配置寄存器 */
-#define MAX30003_CNFG_GEN     0x10  /* 通用配置（时钟/偏置/通道使能等） */
-#define MAX30003_CNFG_CAL     0x12  /* 校准配置（测试信号幅值/频率） */
-#define MAX30003_CNFG_EMUX    0x14  /* 电极复用/导联检测配置 */
-#define MAX30003_CNFG_ECG     0x15  /* ECG通道配置（增益/滤波） */
-#define MAX30003_CNFG_RTOR1   0x1D  /* R-R检测配置1 */
-#define MAX30003_CNFG_RTOR2   0x1E  /* R-R检测配置2 */
+/* 配置寄存�?*/
+#define MAX30003_CNFG_GEN     0x10  /* 通用配置（时�?偏置/通道使能等） */
+#define MAX30003_CNFG_CAL     0x12  /* 校准配置（测试信号幅�?频率�?*/
+#define MAX30003_CNFG_EMUX    0x14  /* 电极复用/导联检测配�?*/
+#define MAX30003_CNFG_ECG     0x15  /* ECG通道配置（增�?滤波�?*/
+#define MAX30003_CNFG_RTOR1   0x1D  /* R-R检测配�? */
+#define MAX30003_CNFG_RTOR2   0x1E  /* R-R检测配�? */
 
-/* 数据寄存器 */
-#define MAX30003_ECG_FIFO     0x20  /* ECG数据FIFO（18位ADC结果） */
-#define MAX30003_PACE         0x21  /* 起搏器检测结果 */
+/* 数据寄存�?*/
+#define MAX30003_ECG_FIFO     0x21  /* ECG数据FIFO�?8位ADC结果�?*/
+#define MAX30003_PACE         0x21  /* 起搏器检测结�?*/
 #define MAX30003_RTOR         0x25  /* R-R间期结果（心率） */
 
 /* 备用 */
-#define MAX30003_NO_OP_ALT    0x7F  /* 备用空操作 */
+#define MAX30003_NO_OP_ALT    0x7F  /* 备用空操�?*/
 
 /* ========== FIFO / Burst 读取 ========== */
 #define FIFO_BURST_SIZE                32
 #define MAX30003_ECG_FIFO_BURST       0x20  /* Burst 模式地址 */
+#define MAX30003_NO_EINT_DRAIN_SAMPLES FIFO_BURST_SIZE
+#define MAX30003_ECG_TASK_USES_BURST_FIFO 1
 
 /* ========== STATUS 寄存器关键位 ========== */
 #define MAX30003_STATUS_EINT        0x800000UL
@@ -61,7 +63,7 @@ extern "C" {
 #define MAX30003_STATUS_LDOFF_NL    (1UL << 0)
 
 /* ========== 内部校准测试模式 ========== */
-/* 设置为 1 启用内部 1Hz 校准波，0 为正常外部 ECG 输入 */
+/* 设置�?1 启用内部 1Hz 校准波，0 为正常外�?ECG 输入 */
 #define MAX30003_USE_INTERNAL_CAL_TEST    0
 
 /* ========== CNFG_CAL 校准配置 ========== */
@@ -117,16 +119,16 @@ extern "C" {
 #define MAX30003_EN_INT_NORMAL  0xC00002UL   /* EN_EINT=1, EN_EOVF=1, INTB_TYPE=10 */
 
 /* ========== MNGR_INT 配置 ========== */
-#define MAX30003_MNGR_INT_FAST  (4UL << 19)  /* EFIT=4, 约5个样本触发一次 EINT */
+#define MAX30003_MNGR_INT_FAST  (4UL << 19)  /* EFIT=4, �?个样本触发一�?EINT */
 
 /* ========== SPI 命令打包工具（可选） ========== */
-/* R/Wb 在最低位：0=WRITE, 1=READ；reg: 0x00..0x7F */
+/* R/Wb 在最低位�?=WRITE, 1=READ；reg: 0x00..0x7F */
 static inline uint8_t MAX30003_MakeCmd(uint8_t reg, uint8_t isRead)
 {
     return (uint8_t)(((reg & 0x7F) << 1) | (isRead ? 1U : 0U));
 }
 
-/* ========== 电极脱落检测状态 ========== */
+/* ========== 电极脱落检测状�?========== */
 typedef enum {
     MAX30003_LEAD_UNKNOWN = 0,
     MAX30003_LEAD_ON,
@@ -142,7 +144,7 @@ typedef struct {
     uint32_t last_update_ms;
 } MAX30003_LeadStatus_t;
 
-/* ========== 对外 API（在 max30003.c 实现） ========== */
+/* ========== 对外 API（在 max30003.c 实现�?========== */
 HAL_StatusTypeDef MAX30003_WriteReg(uint8_t reg, uint32_t val24);
 HAL_StatusTypeDef MAX30003_ReadReg(uint8_t reg, uint32_t *outVal24);
 

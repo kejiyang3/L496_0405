@@ -249,6 +249,30 @@ uint8_t ICM20948_ReadAccelGyroRaw(int16_t *ax, int16_t *ay, int16_t *az,
     return 0;
 }
 
+uint8_t ICM20948_ReadAccelGyroRawNoClear(int16_t *ax, int16_t *ay, int16_t *az,
+                                         int16_t *gx, int16_t *gy, int16_t *gz)
+{
+    uint8_t buf[12];
+    if (!ax || !ay || !az || !gx || !gy || !gz) return 1;
+
+    ICM_SelectBank(0);
+    if (HAL_I2C_Mem_Read(&hi2c3, (ICM20948_ADDR << 1), 0x2D, I2C_MEMADD_SIZE_8BIT, buf, 12, 10) != HAL_OK) {
+        return 1;
+    }
+
+    *ax = (int16_t)((buf[0] << 8) | buf[1]);
+    *ay = (int16_t)((buf[2] << 8) | buf[3]);
+    *az = (int16_t)((buf[4] << 8) | buf[5]);
+    *gx = (int16_t)((buf[6] << 8) | buf[7]);
+    *gy = (int16_t)((buf[8] << 8) | buf[9]);
+    *gz = (int16_t)((buf[10] << 8) | buf[11]);
+
+    raw_ax = *ax; raw_ay = *ay; raw_az = *az;
+    raw_gx = *gx; raw_gy = *gy; raw_gz = *gz;
+
+    return 0;
+}
+
 uint8_t ICM20948_Read_Data(void) {
     uint8_t buf[22] = {0};
     int16_t local_ax, local_ay, local_az, local_gx, local_gy, local_gz, local_mx, local_my, local_mz;

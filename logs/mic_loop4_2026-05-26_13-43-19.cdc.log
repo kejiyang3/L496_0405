@@ -1,0 +1,22 @@
+[13:43:20.479] ✅ 连接成功，开始接收数据
+[13:43:29.325] ⚠ 串口异常: ClearCommError failed (PermissionError(13, '设备不识别此命令。', None, 22))
+[13:43:29.325] ⚠ 连接断开，等待重连...
+[13:43:29.606] ❌ 连接失败，重试中...
+[13:43:32.977] ❌ 连接失败，重试中...
+[13:43:34.133] ✅ 连接成功，开始接收数据
+[13:43:34.133] 📈 累计重连次数: 2
+[13:43:36.282] [ECG_V1] Sensor task started
+[13:43:36.297] [SENSOR] before MAX30003_Init
+[13:43:36.297] [MAX30003] Initializing...
+[13:43:36.298] [MAX30003_INIT] step=cs
+[13:43:36.298] [MAX30003_INIT] step=sw_reset
+[13:43:36.329] [MAX30003_INIT] step=status1
+[13:43:36.330] [MAX30003_INIT] step=status2
+[13:43:36.330] step=info1
+[13:43:36.330] [MAX30003_INIT] step=info2
+[13:43:36.331] step=info3
+[13:43:36.345] 0x513639
+[13:43:36.346] [MAX30003_INIT] step=cnfg_ecg
+[13:43:36.346] NFG_ECG = 0x025000
+[13:43:36.347] [MAX30003_INIT] step=cnfg_gen
+[13:43:36.347] [MAX30003][OK] CNFG_GEN = 0x081217

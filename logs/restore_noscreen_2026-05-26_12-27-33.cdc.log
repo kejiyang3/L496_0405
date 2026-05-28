@@ -1,0 +1,56 @@
+[12:27:49.826] ✅ 连接成功，开始接收数据
+[12:28:03.822] ⚠ 串口异常: ClearCommError failed (PermissionError(13, '设备不识别此命令。', None, 22))
+[12:28:03.822] ⚠ 连接断开，等待重连...
+[12:28:04.327] ✅ 连接成功，开始接收数据
+[12:28:04.327] 📈 累计重连次数: 2
+[12:28:06.910] [ECG_V1] Sensor task started
+[12:28:06.910] [SENSOR] before MAX30003_Init
+[12:30:55.259] ⚠ 串口异常: ClearCommError failed (PermissionError(13, '设备不识别此命令。', None, 22))
+[12:30:55.259] 📊 本次连接统计: 2行数据
+[12:30:55.260] ⚠ 连接断开，等待重连...
+[12:30:55.519] ❌ 连接失败，重试中...
+[12:30:58.817] ❌ 连接失败，重试中...
+[12:30:59.942] ✅ 连接成功，开始接收数据
+[12:30:59.943] 📈 累计重连次数: 3
+[12:31:02.097] [ECG_V1] Sensor task started
+[12:31:02.097] [SENSOR] before MAX30003_Init
+[12:31:02.097] [MAX30003] Initializing...
+[12:31:02.097] [MAX30003_INIT] step=cs
+[12:31:02.097] [MAX30003_INIT] step=sw_reset
+[12:31:02.128] [MAX30003_INIT] step=status1
+[12:31:02.128] [MAX30003_INIT] step=status2
+[12:31:02.128] [MAX30003_INIT] step=info1
+[12:31:02.144] [MAX30003_INIT] step=info2
+[12:31:02.144] [MAX30003_INIT] step=info3
+[12:31:02.144] [MAX30003] INFO=0x513639
+[12:31:02.144] [MAX30003_INIT] step=cnfg_ecg
+[12:31:02.144] [MAX30003][OK] CNFG_ECG = 0x025000
+[12:31:02.144] [MAX30003_INIT] step=cnfg_gen
+[12:31:02.144] NFG_GEN = 0x081217
+[12:31:02.144] NFG_CAL = 0x000000
+[12:31:02.160] [MAX30003][OK] CNFG_EMUX = 0x000000
+[12:31:02.160] [MAX30003_INIT] step=mngr_dyn
+[12:31:02.253] [MAX30003][OK] MNGR_DYN = 0xBF0000
+[12:31:02.253] [MAX30003_INIT] step=pll_wait
+[12:31:02.253] [MAX30003_INIT] step=en_int
+[12:31:02.268] [MAX30003_INIT] step=mngr_int
+[12:31:02.284] [MAX30003][OK] MNGR_INT = 0x200000
+[12:31:02.314] [MAX30003] Init done. STATUS=0x000100
+[12:31:02.314] [SENSOR] after MAX30003_Init
+[12:31:02.314] [SENSOR] after MAX30003_INIT_DONE log
+[12:31:02.314] [SDDBG] new log opened path=0:/log_001.txt
+[12:31:02.330] [MS_SD] mount begin file=0:/ecg_001.csv
+[12:31:02.330] [MS_SD] mount ok
+[12:31:02.330] [MS_SD] open begin file=0:/ecg_001.csv
+[12:31:02.330] [MS_SD] open ok
+[12:31:02.330] [MS_SD] header ok bw=41
+[12:31:02.346] [MS_SD] first sync res=0
+[12:31:02.346] [MS_SD] file opened and released
+[12:31:02.346] [REC] record start file_opened=1 tick=3286
+[12:31:02.346] [REC] before MAX30003_StartStream tick=3286
+[12:31:04.353] [MAX30003_INIT] step=fifo_synch
+[12:31:04.524] [MAX30003] StartStream status1=0x000100 status2=0x000100 status3=0x000100
+[12:31:06.343] [REC] after MAX30003_StartStream tick=3289 start_tick=3231
+[12:31:06.545] [MS_SUBMIT] ECG ok idx=0 count=1024 q=1 ok=1
+[12:31:08.360] [MS_WRITER] wrote type=1 total=1 bytes=30034 ecg_written=1024 fail=0
+[12:31:08.533] [MS_SUBMIT] ECG ok idx=1 count=1024 q=1 ok=2

@@ -1,0 +1,50 @@
+[14:25:48.400] ❌ 连接失败，重试中...
+[14:25:51.603] ❌ 连接失败，重试中...
+[14:25:54.779] ❌ 连接失败，重试中...
+[14:25:57.911] ❌ 连接失败，重试中...
+[14:26:01.079] ❌ 连接失败，重试中...
+[14:26:04.303] ❌ 连接失败，重试中...
+[14:26:06.332] ✅ 连接成功，开始接收数据
+[14:26:08.747] [ECG_V1] Sensor task started
+[14:26:08.747] [SENSOR] before MAX30003_Init
+[14:26:08.748] [MAX30003] Initializing...
+[14:26:08.748] [MAX30003_INIT] step=cs
+[14:26:08.777] [MAX30003_INIT] step=sw_reset
+[14:26:08.778] [MAX30003_INIT] step=status1
+[14:26:08.778] [MAX30003_INIT] step=status2
+[14:26:08.778] [MAX30003_INIT] step=info1
+[14:26:08.778] step=info2
+[14:26:08.779] [MAX30003_INIT] step=info3
+[14:26:08.779] [MAX30003] INFO=0x513639
+[14:26:08.779] [MAX30003_INIT] step=cnfg_ecg
+[14:26:08.779] ] CNFG_GEN = 0x081217
+[14:26:08.885] 03_INIT] step=mngr_dyn_skip
+[14:26:08.885] [MAX30003_INIT] step=pll_wait
+[14:26:08.886] [MAX30003_INIT] step=en_int
+[14:26:08.947] [MAX30003][OK] EN_INT = 0x000002
+[14:26:08.947] [MAX30003_INIT] step=mngr_int
+[14:26:08.947] [MAX30003][OK] MNGR_INT = 0x200000
+[14:26:08.963] [MAX30003] Init done. STATUS=0x000100
+[14:26:08.963] [SENSOR] after MAX30003_Init
+[14:26:08.964] [SENSOR] after MAX30003_INIT_DONE log
+[14:26:09.056] [SDDBG] new log opened path=0:/log_001.txt
+[14:26:09.057] [MS_SD] mount begin file=0:/ecg_001.csv
+[14:26:09.057] [MS_SD] mount ok
+[14:26:09.071] [MS_SD] first sync res=0
+[14:26:09.072] [MS_SD] file opened and released
+[14:26:09.072] [REC] record start file_opened=1 tick=3283
+[14:26:09.073] [MIC] open ok file=0:/mic_001.wav
+[14:26:19.176] 0003_StartStream tick=3373
+[14:26:19.177] [MAX30003_INIT] step=fifo_synch
+[14:26:19.548] [MAX30003] StartStream status1=0x100109 status2=0x100109 status3=0x100109
+[14:26:19.548] [REC] after MAX30003_StartStream tick=3374 start_tick=3374
+[14:26:19.578] [ECG_AUTO_STOP] t=13375
+[14:26:19.579] [MAX30003] StopStream done. STATUS=0x100109
+[14:26:19.579] [REC_STOP]
+[14:26:19.641] [MS_SD] close final_sync=0 close=0 bytes=152917 ecg_written=5106
+[14:26:19.688] [MIC] close seek=0 write=0 bw=44 sync=0 close=0 bytes=393216 halves=48 drops=0
+[14:26:19.719] [DUMP_REQ]
+[14:26:19.734] [LOG_FILE_BEGIN]
+[14:26:19.735] tick,event
+[14:26:19.735] 3207,LOG_FILE_BEGIN,seq=1
+[14:26:19.844] 13877,SNAPSHOT,state=3,seq=2,epoch=3213,ecg_start=3374,ecg_stop=13376,mic_power=3298,mic_open=3363,mic_dma=3370,mic_first_half=3589,mic_stop=13873,mic_by[DUMP_BEGIN]

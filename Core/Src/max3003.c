@@ -5,14 +5,93 @@
 #include "app_log.h"
 #include "ecg_record_control.h"
 #include "sd_debug_log.h"
+#include "cmsis_os.h"
 #include <stdio.h>
 #include <string.h>
+
+#define MAX30003_SPI_WAIT_LIMIT 1000000U
+#define MAX30003_INIT_USB_VERBOSE 1
+#define MAX30003_INIT_SKIP_MNGR_DYN 1
+
+volatile uint32_t g_max30003_init_step = 0;
+volatile uint32_t g_max30003_init_reg = 0;
+volatile uint32_t g_max30003_init_value = 0;
+volatile uint32_t g_max30003_init_status = 0;
+volatile uint32_t g_max30003_start_step = 0;
+volatile uint32_t g_max30003_start_status1 = 0;
+volatile uint32_t g_max30003_start_status2 = 0;
+volatile uint32_t g_max30003_start_status3 = 0;
+
+static HAL_StatusTypeDef MAX30003_SPI_WaitSet(uint32_t flag)
+{
+    uint32_t timeout = MAX30003_SPI_WAIT_LIMIT;
+    while ((hspi3.Instance->SR & flag) == 0U) {
+        if (--timeout == 0U) {
+            return HAL_TIMEOUT;
+        }
+    }
+    return HAL_OK;
+}
+
+static HAL_StatusTypeDef MAX30003_SPI_WaitReset(uint32_t flag)
+{
+    uint32_t timeout = MAX30003_SPI_WAIT_LIMIT;
+    while ((hspi3.Instance->SR & flag) != 0U) {
+        if (--timeout == 0U) {
+            return HAL_TIMEOUT;
+        }
+    }
+    return HAL_OK;
+}
+
+static HAL_StatusTypeDef MAX30003_SPI_Transfer(const uint8_t *tx, uint8_t *rx, uint16_t len)
+{
+    if (tx == NULL || rx == NULL || len == 0U) {
+        return HAL_ERROR;
+    }
+
+    if ((hspi3.Instance->CR1 & SPI_CR1_SPE) == 0U) {
+        __HAL_SPI_ENABLE(&hspi3);
+    }
+
+    __HAL_SPI_CLEAR_OVRFLAG(&hspi3);
+
+    for (uint16_t i = 0; i < len; i++) {
+        if (MAX30003_SPI_WaitSet(SPI_FLAG_TXE) != HAL_OK) {
+            return HAL_TIMEOUT;
+        }
+
+        *(__IO uint8_t *)&hspi3.Instance->DR = tx[i];
+
+        if (MAX30003_SPI_WaitSet(SPI_FLAG_RXNE) != HAL_OK) {
+            return HAL_TIMEOUT;
+        }
+
+        rx[i] = *(__IO uint8_t *)&hspi3.Instance->DR;
+    }
+
+    if (MAX30003_SPI_WaitSet(SPI_FLAG_TXE) != HAL_OK) {
+        return HAL_TIMEOUT;
+    }
+
+    if (MAX30003_SPI_WaitReset(SPI_FLAG_BSY) != HAL_OK) {
+        return HAL_TIMEOUT;
+    }
+
+    return HAL_OK;
+}
 
 /* 外部引用 — Packagedata_AddEcgSample 弱实现 (可被外部覆盖) */
 __attribute__((weak)) void Packagedata_AddEcgSample(int16_t ecg)
 {
     (void)ecg;
     /* 默认空实现, 由外部模块 (如 edf_storage.c) 覆盖 */
+}
+
+/* 安全延时：osDelay 不依赖 HAL tick，内核运行中专用 */
+static void SAFE_Delay(uint32_t ms)
+{
+    if (ms > 0) osDelay(ms);
 }
 
 /* DC Lead-Off 状态缓存 */
@@ -47,25 +126,35 @@ void MAX30003_CS_Init(void)
 static int MAX30003_WriteVerify(uint8_t reg, uint32_t expected, const char *name)
 {
     uint32_t readback = 0;
+    g_max30003_init_reg = reg;
+    g_max30003_init_value = expected;
+    g_max30003_init_step = 0x100U | reg;
     if (MAX30003_WriteReg(reg, expected) != HAL_OK) {
+        g_max30003_init_step = 0x180U | reg;
         APP_USB_LOG("[MAX30003][ERR] WRITE %s failed\r\n", name);
         return 0;
     }
 
-    HAL_Delay(1);
+    SAFE_Delay(1);
 
+    g_max30003_init_step = 0x200U | reg;
     if (MAX30003_ReadReg(reg, &readback) != HAL_OK) {
+        g_max30003_init_step = 0x280U | reg;
         APP_USB_LOG("[MAX30003][ERR] READBACK %s failed\r\n", name);
         return 0;
     }
+    g_max30003_init_status = readback;
 
     if (readback != expected) {
+        g_max30003_init_step = 0x300U | reg;
         APP_USB_LOG("[MAX30003][ERR] %s mismatch: wrote=0x%06lX read=0x%06lX\r\n",
                    name, expected, readback);
         return 0;
     }
 
+#if MAX30003_INIT_USB_VERBOSE
     APP_USB_LOG("[MAX30003][OK] %s = 0x%06lX\r\n", name, readback);
+#endif
     return 1;
 }
 
@@ -120,7 +209,7 @@ HAL_StatusTypeDef MAX30003_ReadReg(uint8_t reg, uint32_t *data)
 void MAX30003_SwReset(void)
 {
     MAX30003_WriteReg(MAX30003_SW_RST, 0x000000);
-    HAL_Delay(10);
+    SAFE_Delay(10);
 }
 
 /**
@@ -147,41 +236,56 @@ void MAX30003_Init(void)
     uint32_t dummy = 0;
     uint32_t info1 = 0, info2 = 0, info3 = 0;
 
+#if MAX30003_INIT_USB_VERBOSE
     APP_USB_LOG("[MAX30003] Initializing...\r\n");
+#endif
 
+    APP_USB_LOG("[MAX30003_INIT] step=cs\r\n");
     MAX30003_CS_Init();
 
+    APP_USB_LOG("[MAX30003_INIT] step=sw_reset\r\n");
     MAX30003_SwReset();
-    HAL_Delay(20);
+    SAFE_Delay(20);
 
     /* 清掉复位后的旧 STATUS */
+    APP_USB_LOG("[MAX30003_INIT] step=status1\r\n");
     MAX30003_ReadReg(MAX30003_STATUS, &dummy);
-    HAL_Delay(2);
+    SAFE_Delay(2);
+    APP_USB_LOG("[MAX30003_INIT] step=status2\r\n");
     MAX30003_ReadReg(MAX30003_STATUS, &dummy);
 
+    APP_USB_LOG("[MAX30003_INIT] step=info1\r\n");
     if (MAX30003_ReadReg(MAX30003_INFO, &info1) != HAL_OK) return;
-    HAL_Delay(1);
+    SAFE_Delay(1);
+    APP_USB_LOG("[MAX30003_INIT] step=info2\r\n");
     if (MAX30003_ReadReg(MAX30003_INFO, &info2) != HAL_OK) return;
-    HAL_Delay(1);
+    SAFE_Delay(1);
+    APP_USB_LOG("[MAX30003_INIT] step=info3\r\n");
     if (MAX30003_ReadReg(MAX30003_INFO, &info3) != HAL_OK) return;
 
+#if MAX30003_INIT_USB_VERBOSE
     APP_USB_LOG("[MAX30003] INFO=0x%06lX\r\n", info1);
+#endif
 
     /* CNFG_ECG: 先配好采样率/增益/滤波，再开 CNFG_GEN */
+    APP_USB_LOG("[MAX30003_INIT] step=cnfg_ecg\r\n");
     if (!MAX30003_WriteVerify(MAX30003_CNFG_ECG,
                               MAX30003_CNFG_ECG_NORMAL,
                               "CNFG_ECG")) return;
 
     /* CNFG_GEN: 一次性写入 EN_ECG + EN_RBIAS + DCLOFF (0x081217) */
+    APP_USB_LOG("[MAX30003_INIT] step=cnfg_gen\r\n");
     if (!MAX30003_WriteVerify(MAX30003_CNFG_GEN,
                               MAX30003_CNFG_GEN_NORMAL,
                               "CNFG_GEN")) return;
 
 #if MAX30003_USE_INTERNAL_CAL_TEST
+    APP_USB_LOG("[MAX30003_INIT] step=cnfg_cal\r\n");
     if (!MAX30003_WriteVerify(MAX30003_CNFG_CAL,
                               MAX30003_CNFG_CAL_1HZ_BIPOLAR,
                               "CNFG_CAL")) return;
 
+    APP_USB_LOG("[MAX30003_INIT] step=cnfg_emux\r\n");
     if (!MAX30003_WriteVerify(MAX30003_CNFG_EMUX,
                               MAX30003_CNFG_EMUX_CAL_DIFF,
                               "CNFG_EMUX")) return;
@@ -196,23 +300,34 @@ void MAX30003_Init(void)
 #endif
 
     /* Auto Fast Recovery: 双电极运动场景快速恢复 */
+    APP_USB_LOG("[MAX30003_INIT] step=mngr_dyn%s\r\n",
+                MAX30003_INIT_SKIP_MNGR_DYN ? "_skip" : "");
+#if MAX30003_INIT_SKIP_MNGR_DYN
+    g_max30003_init_reg = MAX30003_MNGR_DYN;
+    g_max30003_init_value = 0;
+    g_max30003_init_step = 0x500U | MAX30003_MNGR_DYN;
+#else
     if (!MAX30003_WriteVerify(MAX30003_MNGR_DYN,
                               MAX30003_MNGR_DYN_AUTO_FAST,
                               "MNGR_DYN")) return;
+#endif
 
     /* 等待 PLL 锁定 */
+    APP_USB_LOG("[MAX30003_INIT] step=pll_wait\r\n");
     uint8_t retry = 50;
     while(retry--) {
         MAX30003_ReadReg(MAX30003_STATUS, &dummy);
         if((dummy & MAX30003_STATUS_PLLINT) == 0) break;
-        HAL_Delay(2);
+        SAFE_Delay(2);
     }
 
+    APP_USB_LOG("[MAX30003_INIT] step=en_int\r\n");
     if (!MAX30003_WriteVerify(MAX30003_EN_INT,
                               MAX30003_EN_INT_IDLE,
                               "EN_INT")) return;
 
     /* EFIT=4，约 5 个样本触发一次中断 */
+    APP_USB_LOG("[MAX30003_INIT] step=mngr_int\r\n");
     if (!MAX30003_WriteVerify(MAX30003_MNGR_INT,
                               MAX30003_MNGR_INT_FAST,
                               "MNGR_INT")) return;
@@ -222,20 +337,12 @@ void MAX30003_Init(void)
     MAX30003_Synch();
 
     MAX30003_ReadReg(MAX30003_STATUS, &dummy);
+#if MAX30003_INIT_USB_VERBOSE
     APP_USB_LOG("[MAX30003] Init done. STATUS=0x%06lX\r\n", dummy);
+#endif
 
-    /* 一次性读回关键寄存器到 SD debug_log */
-    {
-        uint32_t gen = 0, emux = 0, ecg = 0, status = 0;
-        MAX30003_ReadReg(MAX30003_CNFG_GEN, &gen);
-        MAX30003_ReadReg(MAX30003_CNFG_EMUX, &emux);
-        MAX30003_ReadReg(MAX30003_CNFG_ECG, &ecg);
-        MAX30003_ReadReg(MAX30003_STATUS, &status);
-        SD_DebugLog_WriteEvent("INIT_GEN", gen);
-        SD_DebugLog_WriteEvent("INIT_EMUX", emux);
-        SD_DebugLog_WriteEvent("INIT_ECG", ecg);
-        SD_DebugLog_WriteEvent("INIT_STATUS", status);
-    }
+    /* SD 写入诊断阶段不要在传感器初始化里碰 FatFS。
+     * 数据文件打开前的早期 SD 访问会干扰判断，寄存器快照后续放到录制日志里做。 */
 }
 
 /**
@@ -247,30 +354,47 @@ void MAX30003_StartStream(void)
     uint32_t status2 = 0;
     uint32_t status3 = 0;
 
+    g_max30003_start_step = 10;
+
     /* 先关闭正常 ECG 中断，避免清 FIFO/SYNCH 期间触发任务通知 */
+    g_max30003_start_step = 20;
     (void)MAX30003_WriteReg(MAX30003_EN_INT, MAX30003_EN_INT_IDLE);
 
     /* 关键: 真正开始记录前重新 FIFO_RST + SYNCH，清除 Init→Start 之间的旧数据 */
+    g_max30003_start_step = 30;
+    APP_USB_LOG("[MAX30003_INIT] step=fifo_synch\r\n");
     MAX30003_FifoReset();
+    g_max30003_start_step = 40;
     MAX30003_Synch();
 
     /* 连续读两次 STATUS 清掉旧的 sticky flags */
+    g_max30003_start_step = 50;
     (void)MAX30003_ReadReg(MAX30003_STATUS, &status1);
+    g_max30003_start_status1 = status1;
+    g_max30003_start_step = 60;
     (void)MAX30003_ReadReg(MAX30003_STATUS, &status2);
+    g_max30003_start_status2 = status2;
 
     /* 打开正常 ECG 中断 */
+    g_max30003_start_step = 70;
     if (MAX30003_WriteReg(MAX30003_EN_INT, MAX30003_EN_INT_NORMAL) != HAL_OK) {
-        APP_USB_LOG("[MAX30003][ERR] StartStream write EN_INT_NORMAL failed\r\n");
+        g_max30003_start_step = 71;
         return;
     }
 
+    g_max30003_start_step = 80;
     (void)MAX30003_ReadReg(MAX30003_STATUS, &status3);
+    g_max30003_start_status3 = status3;
 
+    g_max30003_start_step = 90;
     g_ecg_rec.last_status = status3;
     MAX30003_UpdateLeadStatus(status3);
+    g_max30003_start_step = 100;
 
+#if MAX30003_INIT_USB_VERBOSE
     APP_USB_LOG("[MAX30003] StartStream status1=0x%06lX status2=0x%06lX status3=0x%06lX\r\n",
                 status1, status2, status3);
+#endif
 }
 
 /**
@@ -378,6 +502,7 @@ void MAX30003_Task(void)
 
     for (drain = 0; drain < 4; drain++) {
         uint32_t status_reg = 0;
+        uint8_t words_to_read = FIFO_BURST_SIZE;
 
         if (MAX30003_ReadReg(MAX30003_STATUS, &status_reg) != HAL_OK) {
             return;
@@ -398,35 +523,46 @@ void MAX30003_Task(void)
             return;
         }
 
-        /* 无 EINT 则退出 drain */
+        /* 无 EINT 时仍轻量探测 1 个 FIFO word。
+         * 有些调试阶段 EINT/INTB 不稳定，但 FIFO 里可能已有样本。 */
         if ((status_reg & MAX30003_STATUS_EINT) == 0) {
+            words_to_read = MAX30003_NO_EINT_DRAIN_SAMPLES;
+        }
+
+        uint32_t fifo_words[FIFO_BURST_SIZE];
+        if (MAX30003_ReadFifoBurst(fifo_words, words_to_read) != HAL_OK) {
             return;
         }
 
-        uint32_t samples[FIFO_BURST_SIZE];
+        for (uint8_t i = 0; i < words_to_read; i++) {
+            uint32_t raw_data = fifo_words[i];
 
-        if (MAX30003_ReadFifoBurst(samples, FIFO_BURST_SIZE) != HAL_OK) {
-            return;
-        }
-
-        for (uint8_t i = 0; i < FIFO_BURST_SIZE; i++) {
-            uint32_t raw_data = samples[i];
             uint8_t etag = (raw_data >> 3) & 0x07;
 
             if (etag == 0x00 || etag == 0x02) {
                 int16_t ecg_val = MAX30003_ConvertData(raw_data);
 
                 g_ecg_rec.fifo_sample_count++;
+                g_ecg_rec.fifo_valid_count++;
                 Packagedata_AddEcgSample(ecg_val);
 
-                if (etag == 0x02) break;
+                if (etag == 0x02) {
+                    g_ecg_rec.fifo_last_count++;
+                    break;
+                }
             }
             else if (etag == 0x01 || etag == 0x03) {
-                if (etag == 0x03) break;
+                g_ecg_rec.fifo_sample_count++;
+                g_ecg_rec.fifo_fast_count++;
+
+                if (etag == 0x03) {
+                    g_ecg_rec.fifo_last_count++;
+                    break;
+                }
             }
             else if (etag == 0x06) {
                 g_ecg_rec.fifo_empty_count++;
-                break;
+                return;
             }
             else if (etag == 0x07) {
                 g_ecg_rec.fifo_etag_overflow_count++;
@@ -436,6 +572,7 @@ void MAX30003_Task(void)
                 return;
             }
             else {
+                g_ecg_rec.fifo_unknown_etag_count++;
                 break;
             }
         }

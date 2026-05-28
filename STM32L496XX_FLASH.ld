@@ -183,7 +183,7 @@ SECTIONS
   } >RAM
 
   /* --- Manual Injection: Route .sram2 section to physical SRAM2 --- */
-  .sram2_section :
+  .sram2_section (NOLOAD) :
   {
     . = ALIGN(4);
     PROVIDE_HIDDEN (__sram2_start__ = .);
