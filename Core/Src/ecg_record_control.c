@@ -4,6 +4,11 @@
 #include <stdio.h>
 #include <string.h>
 
+
+SD_PathDiag_t g_sd_audio_diag = {0};
+SD_PathDiag_t g_sd_csv_diag   = {0};
+SD_PathDiag_t g_sd_debug_diag = {0};
+
 ECG_RecordControl_t g_ecg_rec = {
     .state = ECG_REC_IDLE,
     .request_start = 0,

@@ -653,9 +653,8 @@ void StartTask_Sensor(void *argument)
         g_ppg_timeout_drain_count = 0;
         icm_irq_count = 0;
         ppg_irq_count = 0;
-        if (Task_AudioHandle != NULL) {
-          osThreadSetPriority(Task_AudioHandle, osPriorityAboveNormal1);
-        }
+        /* AudioTask stays at creation priority Normal1 — must be below SensorTask AboveNormal */
+        (void)Task_AudioHandle;
         Safe_USB_Printf("[REC] before MAX30003_StartStream tick=%lu\r\n",
                         (unsigned long)HAL_GetTick());
         MAX30003_StartStream();

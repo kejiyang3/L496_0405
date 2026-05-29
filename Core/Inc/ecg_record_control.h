@@ -7,6 +7,21 @@ extern "C" {
 
 #include <stdint.h>
 
+typedef struct {
+    volatile uint32_t acquire_count;
+    volatile uint32_t acquire_timeout;
+    volatile uint32_t wait_ms_last;
+    volatile uint32_t wait_ms_max;
+    volatile uint32_t hold_ms_last;
+    volatile uint32_t hold_ms_max;
+    volatile uint32_t write_ms_last;
+    volatile uint32_t write_ms_max;
+    volatile uint32_t sync_ms_last;
+    volatile uint32_t sync_ms_max;
+    volatile uint32_t bytes_written;
+    volatile uint32_t write_error;
+} SD_PathDiag_t;
+
 typedef enum {
     ECG_REC_IDLE = 0,
     ECG_REC_RECORDING,
@@ -124,5 +139,9 @@ void ECG_ResetStats(void);
 #ifdef __cplusplus
 }
 #endif
+
+extern SD_PathDiag_t g_sd_audio_diag;
+extern SD_PathDiag_t g_sd_csv_diag;
+extern SD_PathDiag_t g_sd_debug_diag;
 
 #endif /* __ECG_RECORD_CONTROL_H__ */

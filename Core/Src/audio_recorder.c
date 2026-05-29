@@ -153,15 +153,47 @@ static FRESULT audio_write_locked(const void *data, UINT len)
     UINT bw = 0;
     FRESULT res;
     uint32_t t0 = HAL_GetTick();
+    uint32_t wait_ms = 0, hold_ms = 0, write_ms = 0;
+
+    g_sd_audio_diag.acquire_count++;
 
     if (Mtx_SDCardHandle != NULL) {
+        uint32_t tw = HAL_GetTick();
+#if RECORD_FIX_AUDIO_NONBLOCKING_DISCARD
+        /* P3: 5ms non-blocking */
+        if (osMutexAcquire(Mtx_SDCardHandle, pdMS_TO_TICKS(5)) != osOK) {
+#else
         if (osMutexAcquire(Mtx_SDCardHandle, pdMS_TO_TICKS(20)) != osOK) {
+#endif
             s_audio_mutex_timeouts++;
+            g_sd_audio_diag.acquire_timeout++;
             return FR_TIMEOUT;
         }
+        wait_ms = HAL_GetTick() - tw;
+        g_sd_audio_diag.wait_ms_last = wait_ms;
+        if (wait_ms > g_sd_audio_diag.wait_ms_max) g_sd_audio_diag.wait_ms_max = wait_ms;
     }
 
-    if (RECORD_DIAG_AUDIO_MIC_SD_WRITE) { res = f_write(&s_audio_file, data, len, &bw); } else { res = FR_OK; bw = len; }
+    uint32_t th = HAL_GetTick();
+    if (RECORD_DIAG_AUDIO_MIC_SD_WRITE) {
+#if RECORD_TEST_AUDIO_DROP_BEFORE_FWRITE
+        /* F1: drop before f_write to test if f_write is the necessary trigger */
+        res = FR_OK;
+        bw = len;
+        write_ms = 0;
+        g_sd_audio_diag.write_ms_last = 0;
+#else
+        uint32_t twr = HAL_GetTick();
+        res = f_write(&s_audio_file, data, len, &bw);
+        write_ms = HAL_GetTick() - twr;
+        g_sd_audio_diag.write_ms_last = write_ms;
+        if (write_ms > g_sd_audio_diag.write_ms_max) g_sd_audio_diag.write_ms_max = write_ms;
+#endif
+    } else { res = FR_OK; bw = len; }
+
+    hold_ms = HAL_GetTick() - th;
+    g_sd_audio_diag.hold_ms_last = hold_ms;
+    if (hold_ms > g_sd_audio_diag.hold_ms_max) g_sd_audio_diag.hold_ms_max = hold_ms;
 
     if (Mtx_SDCardHandle != NULL) {
         osMutexRelease(Mtx_SDCardHandle);
@@ -177,9 +209,11 @@ static FRESULT audio_write_locked(const void *data, UINT len)
     if (res == FR_OK && bw == len) {
         s_audio_bytes += bw;
         g_ecg_rec.mic_bytes = s_audio_bytes;
+        g_sd_audio_diag.bytes_written += bw;
         return FR_OK;
     }
 
+    g_sd_audio_diag.write_error++;
     return (res == FR_OK) ? FR_DISK_ERR : res;
 }
 
@@ -197,10 +231,26 @@ static uint8_t audio_open_file(uint32_t seq)
     }
 
     snprintf(path, sizeof(path), "0:/mic_%03lu.wav", (unsigned long)seq);
+#if RECORD_TEST_AUDIO_WRITE_ONLY_NO_SYNC
+    /* F2: skip WAV header entirely, just open raw file */
+    (void)hdr;
+    if (Mtx_SDCardHandle != NULL) {
+        if (osMutexAcquire(Mtx_SDCardHandle, pdMS_TO_TICKS(100)) != osOK) {
+            Safe_USB_Printf("[MIC][ERR] mutex timeout before open\r\n");
+            return 0;
+        }
+    }
+    res = f_open(&s_audio_file, path, FA_CREATE_ALWAYS | FA_WRITE);
+    bw = 0;
+    if (Mtx_SDCardHandle != NULL) {
+        osMutexRelease(Mtx_SDCardHandle);
+    }
+    if (res != FR_OK) {
+#else
     build_wav_header(hdr, 0, AUDIO_SAMPLE_RATE_HZ);
 
     if (Mtx_SDCardHandle != NULL) {
-        if (osMutexAcquire(Mtx_SDCardHandle, pdMS_TO_TICKS(2000)) != osOK) {
+        if (osMutexAcquire(Mtx_SDCardHandle, pdMS_TO_TICKS(100)) != osOK) {
             Safe_USB_Printf("[MIC][ERR] mutex timeout before open\r\n");
             return 0;
         }
@@ -219,6 +269,7 @@ static uint8_t audio_open_file(uint32_t seq)
     }
 
     if (res != FR_OK || bw != sizeof(hdr)) {
+#endif
         Safe_USB_Printf("[MIC][ERR] open/header res=%d bw=%lu file=%s\r\n",
                         res, (unsigned long)bw, path);
         g_ecg_rec.mic_write_errors++;
@@ -266,18 +317,40 @@ static void audio_close_file(void)
         return;
     }
 
+#if RECORD_TEST_AUDIO_WRITE_ONLY_NO_SYNC
+    /* F2: skip header update, just close */
+    (void)hdr;
+    if (Mtx_SDCardHandle != NULL) {
+        if (osMutexAcquire(Mtx_SDCardHandle, pdMS_TO_TICKS(100)) != osOK) {
+            s_audio_mutex_timeouts++;
+            s_audio_file_open = 0;
+            return;
+        }
+    }
+    close_res = f_close(&s_audio_file);
+#else
     build_wav_header(hdr, s_audio_bytes, AudioRecorder_GetEffectiveSampleRateHz());
 
     if (Mtx_SDCardHandle != NULL) {
-        osMutexAcquire(Mtx_SDCardHandle, osWaitForever);
+        if (osMutexAcquire(Mtx_SDCardHandle, pdMS_TO_TICKS(100)) != osOK) {
+            s_audio_mutex_timeouts++;
+            s_audio_file_open = 0;
+            return;
+        }
     }
 
     seek_res = f_lseek(&s_audio_file, 0);
     if (seek_res == FR_OK) {
         write_res = f_write(&s_audio_file, hdr, sizeof(hdr), &bw);
     }
+#if RECORD_TEST_AUDIO_NO_PERIODIC_SYNC
+    /* F3: only sync at close, not periodically */
     sync_res = f_sync(&s_audio_file);
+#else
+    sync_res = f_sync(&s_audio_file);
+#endif
     close_res = f_close(&s_audio_file);
+#endif
 
     if (Mtx_SDCardHandle != NULL) {
         osMutexRelease(Mtx_SDCardHandle);
@@ -343,8 +416,21 @@ static uint8_t audio_write_half(uint32_t *src, uint32_t words)
         in += 2U;
     }
 
-    if (out_samples > 0U) {
-        FRESULT res = audio_write_locked(s_pcm_half, out_samples * sizeof(int16_t));
+        if (out_samples > 0U) {
+        FRESULT res;
+#if RECORD_FIX_AUDIO_NONBLOCKING_DISCARD
+        /* P3: aggregate every 2 half-buffers to reduce f_write frequency */
+        static uint32_t p3_agg_count = 0;
+        p3_agg_count++;
+        if (p3_agg_count >= 2U) {
+            p3_agg_count = 0;
+            res = audio_write_locked(s_pcm_half, out_samples * sizeof(int16_t));
+        } else {
+            res = FR_OK;  /* skip write, pretend success */
+        }
+#else
+        res = audio_write_locked(s_pcm_half, out_samples * sizeof(int16_t));
+#endif
         if (res != FR_OK) {
             g_ecg_rec.mic_write_errors++;
             Safe_USB_Printf("[MIC][ERR] write res=%d bytes=%lu\r\n",
@@ -359,6 +445,10 @@ static uint8_t audio_write_half(uint32_t *src, uint32_t words)
     audio_update_drop_count();
 
     if ((s_audio_halves % AUDIO_SYNC_EVERY_HALVES) == 0U) {
+#if RECORD_TEST_AUDIO_WRITE_ONLY_NO_SYNC || RECORD_TEST_AUDIO_NO_PERIODIC_SYNC
+        /* F2/F3: skip periodic header update + f_sync during recording */
+        FRESULT sync_res = FR_OK;
+#else
         FRESULT sync_res = FR_OK;
 
         if (Mtx_SDCardHandle != NULL) {
@@ -371,10 +461,13 @@ static uint8_t audio_write_half(uint32_t *src, uint32_t words)
         }
 
         sync_res = audio_update_header_and_sync_locked();
+#endif
 
+#if !RECORD_TEST_AUDIO_WRITE_ONLY_NO_SYNC && !RECORD_TEST_AUDIO_NO_PERIODIC_SYNC
         if (Mtx_SDCardHandle != NULL) {
             osMutexRelease(Mtx_SDCardHandle);
         }
+#endif
 
         if (sync_res != FR_OK) {
             g_ecg_rec.mic_write_errors++;

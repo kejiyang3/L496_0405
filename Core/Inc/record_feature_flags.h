@@ -59,6 +59,16 @@
 #define RECORD_TEST_ECG_DIAG_ENABLE 1      /* master diag switch */
 #define RECORD_ECG_TASK_PRIORITY_BOOST 0   /* P-SW-D: 0=normal, 1=boosted */
 
+/* === Case F SD Write Experiment Flags === */
+/* F1: drop before f_write (test if f_write is necessary trigger) */
+#define RECORD_TEST_AUDIO_DROP_BEFORE_FWRITE 0
+/* F2: f_write only, no WAV header update, no f_sync during recording */
+#define RECORD_TEST_AUDIO_WRITE_ONLY_NO_SYNC 0
+/* F3: full WAV write but no periodic f_sync/header update */
+#define RECORD_TEST_AUDIO_NO_PERIODIC_SYNC 0
+/* P3: non-blocking audio discard: 5ms mutex, no f_sync in recording */
+#define RECORD_FIX_AUDIO_NONBLOCKING_DISCARD 0
+
 #endif
 
 

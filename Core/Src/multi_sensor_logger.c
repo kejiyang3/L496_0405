@@ -357,10 +357,26 @@ static inline int sd_write_records_checked(FIL *fp, const char *buf, UINT len,
     UINT bw = 0;
     FRESULT res;
 
+    uint32_t sd_mtx_t0 = HAL_GetTick();
+    g_sd_csv_diag.acquire_count++;
     if (Mtx_SDCardHandle != NULL) {
         osMutexAcquire(Mtx_SDCardHandle, osWaitForever);
+        uint32_t wms = HAL_GetTick() - sd_mtx_t0;
+        g_sd_csv_diag.wait_ms_last = wms;
+        if (wms > g_sd_csv_diag.wait_ms_max) g_sd_csv_diag.wait_ms_max = wms;
     }
-    res = f_write(fp, buf, len, &bw);
+    {
+        uint32_t twr = HAL_GetTick();
+        res = f_write(fp, buf, len, &bw);
+        uint32_t wrms = HAL_GetTick() - twr;
+        g_sd_csv_diag.write_ms_last = wrms;
+        if (wrms > g_sd_csv_diag.write_ms_max) g_sd_csv_diag.write_ms_max = wrms;
+    }
+    {
+        uint32_t hms = HAL_GetTick() - sd_mtx_t0;
+        g_sd_csv_diag.hold_ms_last = hms;
+        if (hms > g_sd_csv_diag.hold_ms_max) g_sd_csv_diag.hold_ms_max = hms;
+    }
     if (Mtx_SDCardHandle != NULL) {
         osMutexRelease(Mtx_SDCardHandle);
     }
@@ -622,9 +638,18 @@ void StartTask_MultiSensor_SDWriter(void *argument)
                 if ((total_blocks % MS_SYNC_EVERY_BLOCKS) == 0) {
                     FRESULT sync_res;
                     if (Mtx_SDCardHandle != NULL) {
-                        osMutexAcquire(Mtx_SDCardHandle, osWaitForever);
+                        if (osMutexAcquire(Mtx_SDCardHandle, pdMS_TO_TICKS(20)) != osOK) {
+                            s_ecg_write_fail++;
+                            continue;
+                        }
                     }
-                    sync_res = f_sync(&s_ms_file);
+                    {
+                        uint32_t csv_s = HAL_GetTick();
+                        sync_res = f_sync(&s_ms_file);
+                        uint32_t csv_sms = HAL_GetTick() - csv_s;
+                        g_sd_csv_diag.sync_ms_last = csv_sms;
+                        if (csv_sms > g_sd_csv_diag.sync_ms_max) g_sd_csv_diag.sync_ms_max = csv_sms;
+                    }
                     if (Mtx_SDCardHandle != NULL) {
                         osMutexRelease(Mtx_SDCardHandle);
                     }
@@ -647,12 +672,27 @@ void StartTask_MultiSensor_SDWriter(void *argument)
         }
 
         /* 鍏抽棴鏂囦欢 鈥?浠?fsync+close锛屼笉 unmount */
-        if (Mtx_SDCardHandle != NULL) {
-            osMutexAcquire(Mtx_SDCardHandle, osWaitForever);
+        FRESULT final_sync = FR_OK;
+        FRESULT close_res = FR_OK;
+        {
+            int close_mutex_ok = 1;
+            if (Mtx_SDCardHandle != NULL) {
+                if (osMutexAcquire(Mtx_SDCardHandle, pdMS_TO_TICKS(100)) != osOK) {
+                    close_mutex_ok = 0;
+                }
+            }
+            if (close_mutex_ok) {
+                uint32_t csv_s = HAL_GetTick();
+                final_sync = f_sync(&s_ms_file);
+                uint32_t csv_sms = HAL_GetTick() - csv_s;
+                g_sd_csv_diag.sync_ms_last = csv_sms;
+                if (csv_sms > g_sd_csv_diag.sync_ms_max) g_sd_csv_diag.sync_ms_max = csv_sms;
+                close_res = f_close(&s_ms_file);
+                if (Mtx_SDCardHandle != NULL) {
+                    osMutexRelease(Mtx_SDCardHandle);
+                }
+            }
         }
-
-        FRESULT final_sync = f_sync(&s_ms_file);
-        FRESULT close_res = f_close(&s_ms_file);
         Safe_USB_Printf("[MS_SD] close final_sync=%d close=%d bytes=%lu ecg_written=%lu\r\n",
                         final_sync, close_res,
                         (unsigned long)g_ecg_rec.sd_write_bytes,
@@ -664,8 +704,6 @@ void StartTask_MultiSensor_SDWriter(void *argument)
         g_ecg_rec.sd_file_closed = 1;
         g_ecg_rec.stop_tick = HAL_GetTick();
         g_ecg_rec.state = ECG_REC_STOPPED;
-
-        if (Mtx_SDCardHandle != NULL) osMutexRelease(Mtx_SDCardHandle);
 
         /* 鍐欑粺璁℃憳瑕佸埌 debug_log */
         #if 1

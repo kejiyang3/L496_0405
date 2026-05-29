@@ -38,10 +38,16 @@ static FRESULT SD_DebugLog_AppendRaw(const char *text)
     if (text == NULL) return FR_INT_ERR;
 
     if (Mtx_SDCardHandle != NULL) {
-        if (osMutexAcquire(Mtx_SDCardHandle, 500) != osOK) {
+        uint32_t dd_t0 = HAL_GetTick();
+        if (osMutexAcquire(Mtx_SDCardHandle, pdMS_TO_TICKS(20)) != osOK) {
+            g_sd_debug_diag.acquire_timeout++;
             Safe_USB_Printf("[SDDBG][ERR] mutex timeout path=%s\r\n", s_sd_debug_log_path);
             return FR_INT_ERR;
         }
+        uint32_t dd_wait = HAL_GetTick() - dd_t0;
+        g_sd_debug_diag.wait_ms_last = dd_wait;
+        if (dd_wait > g_sd_debug_diag.wait_ms_max) g_sd_debug_diag.wait_ms_max = dd_wait;
+        g_sd_debug_diag.acquire_count++;
     }
 
     if (!s_sd_debug_mounted) {
@@ -58,13 +64,33 @@ static FRESULT SD_DebugLog_AppendRaw(const char *text)
      * 鏁版嵁 CSV 鎵撳紑鍚庡啀娆?mount 鍚屼竴鍗凤紝鍙兘璁╁凡鎵撳紑鐨?FIL 瀵硅薄澶辨晥銆?*/
     res = f_open(&file, s_sd_debug_log_path, FA_OPEN_APPEND | FA_WRITE);
     if (res == FR_OK) {
+        uint32_t dd_h0 = HAL_GetTick();
         FRESULT wr = f_write(&file, text, strlen(text), &bw);
+        {
+            uint32_t dd_wr = HAL_GetTick() - dd_h0;
+            g_sd_debug_diag.write_ms_last = dd_wr;
+            if (dd_wr > g_sd_debug_diag.write_ms_max) g_sd_debug_diag.write_ms_max = dd_wr;
+        }
         if (wr != FR_OK || bw != strlen(text)) {
             Safe_USB_Printf("[SDDBG][ERR] write path=%s res=%d bw=%lu len=%lu\r\n",
                             s_sd_debug_log_path, wr, (unsigned long)bw,
                             (unsigned long)strlen(text));
+            g_sd_debug_diag.write_error++;
+        } else {
+            g_sd_debug_diag.bytes_written += bw;
         }
-        f_sync(&file);
+        {
+            uint32_t dd_s = HAL_GetTick();
+            f_sync(&file);
+            uint32_t dd_sm = HAL_GetTick() - dd_s;
+            g_sd_debug_diag.sync_ms_last = dd_sm;
+            if (dd_sm > g_sd_debug_diag.sync_ms_max) g_sd_debug_diag.sync_ms_max = dd_sm;
+        }
+        {
+            uint32_t dd_h = HAL_GetTick() - dd_h0;
+            g_sd_debug_diag.hold_ms_last = dd_h;
+            if (dd_h > g_sd_debug_diag.hold_ms_max) g_sd_debug_diag.hold_ms_max = dd_h;
+        }
         f_close(&file);
     } else {
         Safe_USB_Printf("[SDDBG][ERR] open path=%s res=%d\r\n", s_sd_debug_log_path, res);
@@ -97,7 +123,8 @@ void SD_DebugLog_StartNewFile(uint32_t seq)
              "0:/log_%03lu.txt", (unsigned long)seq);
 
     if (Mtx_SDCardHandle != NULL) {
-        if (osMutexAcquire(Mtx_SDCardHandle, 1000) != osOK) {
+        if (osMutexAcquire(Mtx_SDCardHandle, pdMS_TO_TICKS(20)) != osOK) {
+            g_sd_debug_diag.acquire_timeout++;
             Safe_USB_Printf("[SDDBG][ERR] newfile mutex timeout path=%s\r\n", s_sd_debug_log_path);
             return;
         }
@@ -194,6 +221,35 @@ void SD_DebugLog_WriteSnapshot(void)
              g_ecg_rec.pll_edge_count,
              g_ecg_rec.last_status);
     SD_DebugLog_AppendRaw(buf);
+
+    /* SDSTAT: per-path SD write timing diag */
+    {
+        char sdstat[256];
+        int n = snprintf(sdstat, sizeof(sdstat),
+                         "SDSTAT,"
+                         "audio_wait_max=%lu,audio_hold_max=%lu,audio_write_max=%lu,audio_sync_max=%lu,audio_timeout=%lu,audio_bytes=%lu,"
+                         "csv_wait_max=%lu,csv_hold_max=%lu,csv_write_max=%lu,csv_sync_max=%lu,csv_timeout=%lu,"
+                         "debug_wait_max=%lu,debug_hold_max=%lu,debug_write_max=%lu,debug_sync_max=%lu,debug_timeout=%lu",
+                         (unsigned long)g_sd_audio_diag.wait_ms_max,
+                         (unsigned long)g_sd_audio_diag.hold_ms_max,
+                         (unsigned long)g_sd_audio_diag.write_ms_max,
+                         (unsigned long)g_sd_audio_diag.sync_ms_max,
+                         (unsigned long)g_sd_audio_diag.acquire_timeout,
+                         (unsigned long)g_sd_audio_diag.bytes_written,
+                         (unsigned long)g_sd_csv_diag.wait_ms_max,
+                         (unsigned long)g_sd_csv_diag.hold_ms_max,
+                         (unsigned long)g_sd_csv_diag.write_ms_max,
+                         (unsigned long)g_sd_csv_diag.sync_ms_max,
+                         (unsigned long)g_sd_csv_diag.acquire_timeout,
+                         (unsigned long)g_sd_debug_diag.wait_ms_max,
+                         (unsigned long)g_sd_debug_diag.hold_ms_max,
+                         (unsigned long)g_sd_debug_diag.write_ms_max,
+                         (unsigned long)g_sd_debug_diag.sync_ms_max,
+                         (unsigned long)g_sd_debug_diag.acquire_timeout);
+        if (n > 0 && n < (int)sizeof(sdstat)) {
+            SD_DebugLog_AppendRaw(sdstat);
+        }
+    }
 }
 
 void SD_DebugLog_WriteSessionSummary(void)
@@ -261,7 +317,8 @@ void SD_DebugLog_WriteSessionSummary(void)
     snprintf(path, sizeof(path), "0:/session_%03lu.txt", (unsigned long)seq);
 
     if (Mtx_SDCardHandle != NULL) {
-        if (osMutexAcquire(Mtx_SDCardHandle, 1000) != osOK) {
+        if (osMutexAcquire(Mtx_SDCardHandle, pdMS_TO_TICKS(20)) != osOK) {
+            g_sd_debug_diag.acquire_timeout++;
             Safe_USB_Printf("[SDDBG][ERR] session mutex timeout path=%s\r\n", path);
             return;
         }
@@ -350,6 +407,7 @@ void SD_DebugLog_WriteSessionSummary(void)
         Safe_USB_Printf("[SESSION][ERR] summary path=%s res=%d\r\n", path, res);
     }
 }
+
 
 
 
