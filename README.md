@@ -26,6 +26,17 @@ Current duration policy:
 - Recordings auto-stop after 10 minutes, so validation does not depend on the screen STOP button.
 - Older 10-second boot auto-record notes are historical unless the feature flag is changed again.
 
+## Diagnostic Status (2026-05-29)
+
+See **[ECG_AUDIO_FULL_DIAG_REPORT.md](ECG_AUDIO_FULL_DIAG_REPORT.md)** for the full root-cause analysis, Case A-F layered experiments, and fix history:
+
+| Phase | Status |
+|-------|--------|
+| AudioTask hot-loop + priority inversion | Fixed (Case C: 1003714.4 Hz) |
+| Case F SD write blocking | Partial (74.71130.7 Hz, +75%) |
+| INTB/EXTI degradation (2.2 Hz vs 374 Hz expected) | Next phase |
+| Case A 374512 Hz | Next phase |
+
 ## Build And Flash
 
 From `C:\Users\ycs\OneDrive\桌面\codexppt\L496_0405`:
