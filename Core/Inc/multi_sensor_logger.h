@@ -13,13 +13,17 @@ extern "C" {
 /* ========== 采样率与 2 秒 Block 容量 ========== */
 #define LOG_BLOCK_SECONDS       2
 
-#define ECG_SAMPLE_RATE_HZ      512
+#define ECG_SAMPLE_RATE_HZ      RECORD_ECG_SAMPLE_RATE_HZ
 #define PPG_SAMPLE_RATE_HZ      RECORD_PPG_SAMPLE_RATE_HZ
 #define IMU_SAMPLE_RATE_HZ      104
 
 #define ECG_BLOCK_SAMPLES       (ECG_SAMPLE_RATE_HZ * LOG_BLOCK_SECONDS)   /* 1024 */
 #define PPG_BLOCK_SAMPLES       (PPG_SAMPLE_RATE_HZ * LOG_BLOCK_SECONDS)   /* 400 */
 #define IMU_BLOCK_SAMPLES       (IMU_SAMPLE_RATE_HZ * LOG_BLOCK_SECONDS)   /* ~2s @ ICM Data Ready */
+
+#define MS_ECG_BLOCK_COUNT      4U
+#define MS_PPG_BLOCK_COUNT      2U
+#define MS_IMU_BLOCK_COUNT      2U
 
 /* ========== Block 结构体 ========== */
 

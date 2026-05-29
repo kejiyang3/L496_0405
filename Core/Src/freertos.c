@@ -55,6 +55,8 @@ extern volatile uint8_t ecg_streaming;
 extern volatile uint32_t ecg_irq_count;
 extern volatile uint32_t icm_irq_count;
 extern volatile uint32_t ppg_irq_count;
+extern volatile uint32_t touch_irq_count;
+extern volatile uint8_t touch_int_flag;
 extern uint8_t ble_rx_buf[];
 extern volatile uint16_t ble_rx_len;
 extern volatile uint8_t ble_rx_flag;
@@ -64,8 +66,9 @@ extern DMA_HandleTypeDef hdma_usart1_rx;
 TaskHandle_t EcgTaskHandle = NULL;             /* ECG任务句柄, 供ISR直接通知 */
 TaskHandle_t PpgTaskHandle = NULL;             /* PPG任务句柄 */
 TaskHandle_t ImuTaskHandle = NULL;             /* IMU任务句柄 */
+TaskHandle_t LvglTaskHandle = NULL;             /* LVGL任务句柄, 供ISR通知 */
 
-/* ECG 临时 RAM 缓存 (短期观察用，不用作长期存储) */
+/* ECG 临时 RAM 缓存 (短期观察用，不用作长期存�? */
 #define ECG_BUFFER_SIZE 10240
 int16_t ecg_buffer[ECG_BUFFER_SIZE];
 volatile uint32_t ecg_buf_idx = 0;
@@ -76,7 +79,7 @@ typedef enum {
 } SysState_t;
 
 volatile SysState_t g_sys_state = SYS_STATE_IDLE;
-/* USB TX 统计计数器 */
+/* USB TX 统计计数�?*/
 volatile uint32_t usb_tx_ok_count = 0;
 volatile uint32_t usb_tx_busy_count = 0;
 volatile uint32_t usb_tx_drop_count = 0;
@@ -396,6 +399,7 @@ void StartTask_LVGL(void *argument)
 {
   /* USER CODE BEGIN StartTask_LVGL */
   (void)argument;
+  LvglTaskHandle = xTaskGetCurrentTaskHandle();
 
   /* 1. 等待 USB 枚举完成 */
   osDelay(2000);
@@ -406,15 +410,27 @@ void StartTask_LVGL(void *argument)
   __HAL_DMA_DISABLE_IT(&hdma_usart1_rx, DMA_IT_HT);
 #endif
 
-  /* 3. USB CDC 就绪（V1 关闭 USB 日志） */
+  /* 3. USB CDC 就绪（V1 关闭 USB 日志�?*/
   APP_USB_LOG("\r\n[SYS] RTOS Started, USB CDC Ready!\r\n");
 
-  /* 4. 初始化 LVGL 显示 + V1 ECG 控制界面 */
+  /* 4. 初始�?LVGL 显示 + V1 ECG 控制界面 */
+  Safe_USB_Printf("[LVGL] APP_LVGL_Init start\r\n");
   APP_LVGL_Init();
+  Safe_USB_Printf("[LVGL] APP_LVGL_Init done\r\n");
 
   for(;;) {
+    {
+      static uint32_t _last_touch_print_tick = 0;
+      uint32_t _now = HAL_GetTick();
+      if (_now - _last_touch_print_tick >= 5000) {
+        _last_touch_print_tick = _now;
+        Safe_USB_Printf("[TOUCH] irq=%lu flag=%u pin=%u\r\n",
+                        (unsigned long)touch_irq_count, (unsigned int)touch_int_flag,
+                        (unsigned int)HAL_GPIO_ReadPin(INT_TOUCH_GPIO_Port, INT_TOUCH_Pin));
+      }
+    }
     APP_LVGL_Process();
-    osDelay(APP_LVGL_GetProcessDelayMs());
+    ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(APP_LVGL_GetProcessDelayMs()));
   }
   /* USER CODE END StartTask_LVGL */
 }
@@ -430,12 +446,12 @@ void StartTask_Sensor(void *argument)
 
   osDelay(3000);
 
-  /* SD debug log — 必须在 RTOS 运行后才能安全调用 f_mount */
+  /* SD debug log �?必须�?RTOS 运行后才能安全调�?f_mount */
   SD_DebugLog_Init();
 
   APP_USB_LOG("[ECG_V1] Sensor task started\r\n");
 
-  /* I2C3 传感器一次性初始化。先初始化 ICM，避免 PPG/TXS 异常影响已验证的 IMU 基线。 */
+  /* I2C3 传感器一次性初始化。先初始�?ICM，避�?PPG/TXS 异常影响已验证的 IMU 基线�?*/
   MAX30102_InitResult_t ppg_ret;
   uint8_t icm_ret;
 #if ECG_DEBUG_ENABLE_ICM
@@ -466,7 +482,7 @@ void StartTask_Sensor(void *argument)
   }
   g_ppg_init_ret = (uint32_t)ppg_ret;
   if (ppg_ret != MAX30102_INIT_OK) {
-      /* PPG 失败时重置 STM32 侧 I2C3，避免失败事务残留影响后续 ICM 运行期读数。 */
+      /* PPG 失败时重�?STM32 �?I2C3，避免失败事务残留影响后�?ICM 运行期读数�?*/
       APP_I2C3_BusRecover();
   }
 #else
@@ -478,8 +494,8 @@ void StartTask_Sensor(void *argument)
   Safe_USB_Printf("\r\n[SENSOR_INIT]\r\n");
   if (ppg_ret == MAX30102_INIT_OK) {
       Safe_USB_Printf("[MAX30102] I2C CALL OK, INIT OK\r\n");
-      /* 轮询探针已完成使命，证明硬件链路通。现在注释掉，避免阻塞 RTOS 调度。
-       * 遗留中断由后续 recording start 流程清 INT_STATUS1 释放引脚。 */
+      /* 轮询探针已完成使命，证明硬件链路通。现在注释掉，避免阻�?RTOS 调度�?
+       * 遗留中断由后�?recording start 流程�?INT_STATUS1 释放引脚�?*/
       // MAX30102_Debug_Poll_INT_Pin();
   }
   else if (ppg_ret == MAX30102_INIT_NOT_FOUND)
@@ -510,7 +526,7 @@ void StartTask_Sensor(void *argument)
       SD_DebugLog_WriteLine(icm_err);
   }
 
-  /* ICM20948 中断标志+引脚电平验证 — 仅在 ICM 初始化成功后执行一次 */
+  /* ICM20948 中断标志+引脚电平验证 �?仅在 ICM 初始化成功后执行一�?*/
   if (!ECG_DEBUG_ISOLATE_TASKS && ECG_DEBUG_ENABLE_ICM && icm_ret == 0) {
       APP_ICM20948_IntFlagAndPinLevelCheck();
   }
@@ -518,12 +534,13 @@ void StartTask_Sensor(void *argument)
   /* ECG 初始化照旧，不受 PPG/ICM 影响 */
   Safe_USB_Printf("[SENSOR] before MAX30003_Init\r\n");
   MAX30003_Init();
+  MAX30003_DiagLog_Init();
   Safe_USB_Printf("[SENSOR] after MAX30003_Init\r\n");
   MAX30003_PollLeadStatus();
   SD_DebugLog_WriteLine("MAX30003_INIT_DONE");
   Safe_USB_Printf("[SENSOR] after MAX30003_INIT_DONE log\r\n");
 
-  /* 初始不采集 */
+  /* 初始不采�?*/
   ecg_streaming = 0;
   g_sys_state = SYS_STATE_IDLE;
   uint8_t finalize_after_stop = 0;
@@ -555,7 +572,7 @@ void StartTask_Sensor(void *argument)
 
         MultiSensorLogger_ResetForNewRecording();
 
-        /* 等待 MSWriter 打开文件，最多 3000ms */
+        /* 等待 MSWriter 打开文件，最�?3000ms */
         uint32_t t0 = HAL_GetTick();
         while (!g_ecg_rec.sd_file_opened && (HAL_GetTick() - t0 < 3000)) {
             osDelay(10);
@@ -569,7 +586,7 @@ void StartTask_Sensor(void *argument)
             g_ecg_rec.auto_stop_ms = 0;
             g_sys_state = SYS_STATE_IDLE;
             continue;
-            /* 调试模式：没有 SD 也继续启动流，以便观测采样率 */
+            /* 调试模式：没�?SD 也继续启动流，以便观测采样率 */
         }
 
         Safe_USB_Printf("[REC] record start file_opened=%u tick=%lu\r\n",
@@ -599,7 +616,7 @@ void StartTask_Sensor(void *argument)
         __HAL_GPIO_EXTI_CLEAR_IT(PPG_INT_Pin);
         __HAL_GPIO_EXTI_CLEAR_IT(ICM_INT_Pin);
 
-        // [DEBUG] 跳过 PPG/ICM I2C 操作以排除 I2C NACK 问题
+        // [DEBUG] 跳过 PPG/ICM I2C 操作以排�?I2C NACK 问题
         // {
         //     uint8_t s1, s2;
         //     MAX30102_ClearInterruptStatus(&s1, &s2);
@@ -649,7 +666,7 @@ void StartTask_Sensor(void *argument)
       }
     }
 
-    /* 调试：自动停止计时 */
+    /* 调试：自动停止计�?*/
     if (g_ecg_rec.auto_stop_ms > 0 &&
         g_ecg_rec.state == ECG_REC_RECORDING) {
         if (HAL_GetTick() - g_ecg_rec.start_tick >= g_ecg_rec.auto_stop_ms) {
@@ -684,6 +701,7 @@ void StartTask_Sensor(void *argument)
         g_ecg_rec.state = ECG_REC_STOPPING;
         finalize_after_stop = 1;
 
+        MAX30003_DiagLog_Stop();
         Safe_USB_Printf("[REC_STOP]\r\n");
       }
     }
@@ -707,13 +725,18 @@ void StartTask_Sensor(void *argument)
         last_loop_log = now_tick;
         Safe_USB_Printf("[LOOP] tick=%lu\r\n", (unsigned long)now_tick);
       }
-      (void)ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(5));
+      if (ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(8)) > 0) {
+        g_ecg_rec.diag_notify_wakes++;
+      } else {
+        g_ecg_rec.diag_notify_timeouts++;
+      }
       MAX30003_Task();
+      MAX30003_DiagLog_Run();
     } else {
       osDelay(20);
     }
 
-    /* 低频轮询电极状态 (4Hz)，Idle 也持续检测 */
+    /* 低频轮询电极状�?(4Hz)，Idle 也持续检�?*/
     static uint32_t last_lead_poll = 0;
     if (HAL_GetTick() - last_lead_poll >= 250) {
         last_lead_poll = HAL_GetTick();
@@ -732,7 +755,7 @@ void StartTask_Sensor(void *argument)
 
     APP_USB_LogFlush(0);
 
-    /* PPG INT 诊断 SD 采集 — 每 200ms 记录一条到 ppg_int_diag.csv */
+    /* PPG INT 诊断 SD 采集 �?�?200ms 记录一条到 ppg_int_diag.csv */
     static uint32_t last_ppg_diag_tick = 0;
     static uint32_t ppg_diag_seq = 0;
     if (!ECG_DEBUG_ISOLATE_TASKS &&
@@ -952,10 +975,10 @@ void StartTask_BLE(void *argument)
 /* USER CODE BEGIN Application */
 
 /**
-  * @brief  ICM20948 中断标志+引脚电平最小验证 — PIN→ST1→PIN 顺序读
-  * @note   在锁存模式下先读 PH1 电平再读 INT_STATUS_1 再读 PH1 电平，
-  *         避免读状态寄存器意外清除锁存中断后引脚恢复高。
-  *         结果输出到 SD debug_log 和 USB CDC (一次性)。
+  * @brief  ICM20948 中断标志+引脚电平最小验�?�?PIN→ST1→PIN 顺序�?
+  * @note   在锁存模式下先读 PH1 电平再读 INT_STATUS_1 再读 PH1 电平�?
+  *         避免读状态寄存器意外清除锁存中断后引脚恢复高�?
+  *         结果输出�?SD debug_log �?USB CDC (一次�?�?
   */
 static void APP_ICM20948_IntFlagAndPinLevelCheck(void)
 {
@@ -978,7 +1001,7 @@ static void APP_ICM20948_IntFlagAndPinLevelCheck(void)
     SD_DebugLog_WriteLine("ICM_INT_FLAG_PIN_CHECK_BEGIN");
     Safe_USB_Printf("\r\n[ICM_INT_FLAG_PIN_CHECK_BEGIN]\r\n");
 
-    /* 1. 关闭旧中断并清旧状态 */
+    /* 1. 关闭旧中断并清旧状�?*/
     ICM20948_DisableDataReadyInterrupt();
     ICM20948_ClearInterruptStatus();
     osDelay(20);
@@ -1009,7 +1032,7 @@ static void APP_ICM20948_IntFlagAndPinLevelCheck(void)
     SD_DebugLog_WriteLine(line);
     Safe_USB_Printf("%s\r\n", line);
 
-    /* 5. 等待 Data Ready 产生 (50Hz ODR, 120ms内应有多次) */
+    /* 5. 等待 Data Ready 产生 (50Hz ODR, 120ms内应有多�? */
     osDelay(120);
 
     /* 6. 核心验证: 先读PIN, 再读ST1, 再读PIN */
@@ -1031,7 +1054,7 @@ static void APP_ICM20948_IntFlagAndPinLevelCheck(void)
     SD_DebugLog_WriteLine(line);
     Safe_USB_Printf("%s\r\n", line);
 
-    /* 7. 结束后关闭中断并清状态 */
+    /* 7. 结束后关闭中断并清状�?*/
     ICM20948_DisableDataReadyInterrupt();
     ICM20948_ClearInterruptStatus();
 
@@ -1040,9 +1063,9 @@ static void APP_ICM20948_IntFlagAndPinLevelCheck(void)
 }
 
 /**
-  * @brief  PPG INT 诊断采集 → SD 队列
-  * @note   150ms 周期调用。先读引脚电平 → 读 STATUS1 → 再读引脚电平。
-  *         读取 STATUS1 会清除对应中断状态（仅用于调试）。
+  * @brief  PPG INT 诊断采集 �?SD 队列
+  * @note   150ms 周期调用。先读引脚电�?�?�?STATUS1 �?再读引脚电平�?
+  *         读取 STATUS1 会清除对应中断状态（仅用于调试）�?
   */
 static void APP_Log_PPG_INT_Diag_To_SD(uint32_t seq)
 {
@@ -1059,14 +1082,14 @@ static void APP_Log_PPG_INT_Diag_To_SD(uint32_t seq)
     rec.data.ppg_int_diag.pin_before = (s == GPIO_PIN_SET) ? 1 : 0;
     rec.data.ppg_int_diag.irq_count  = ppg_irq_count;
 
-    /* 2. 读 I2C 寄存器 */
+    /* 2. �?I2C 寄存�?*/
     uint8_t ie1 = 0xEE, status1 = 0xEE, wr = 0xEE, rd = 0xEE, ov = 0xEE;
 
     MAX30102_ReadBuffer(INTERRUPT_ENABLE1, &ie1, 1);
 
     /*
-     * NOTE: 读取 INTERRUPT_STATUS1 会清除对应中断状态并释放 INT 引脚。
-     * 后续正式中断采集版本中，应避免在非事件处理处频繁读取 STATUS1。
+     * NOTE: 读取 INTERRUPT_STATUS1 会清除对应中断状态并释放 INT 引脚�?
+     * 后续正式中断采集版本中，应避免在非事件处理处频繁读取 STATUS1�?
      */
     MAX30102_ReadBuffer(INTERRUPT_STATUS1, &status1, 1);
 
@@ -1080,38 +1103,53 @@ static void APP_Log_PPG_INT_Diag_To_SD(uint32_t seq)
     rec.data.ppg_int_diag.fifo_rd = rd & 0x1F;
     rec.data.ppg_int_diag.fifo_ov = ov & 0x1F;
 
-    /* 3. 读取 STATUS1 后，立即再次读引脚电平 */
+    /* 3. 读取 STATUS1 后，立即再次读引脚电�?*/
     s = HAL_GPIO_ReadPin(PPG_INT_GPIO_Port, PPG_INT_Pin);
     rec.data.ppg_int_diag.pin_after = (s == GPIO_PIN_SET) ? 1 : 0;
 
-    /* 4. 入 SD 队列，异步写卡 */
+    /* 4. �?SD 队列，异步写�?*/
     PPGDiag_Enqueue(&rec);
 }
 
 /**
-  * @brief  Producer: 将 ECG 样本存入 RAM buffer 和 SD 队列
+  * @brief  Producer: �?ECG 样本存入 RAM buffer �?SD 队列
   */
 void Packagedata_AddEcgSample(int16_t ecg)
 {
+  g_ecg_rec.pack_add_attempt_count++;
   if (g_ecg_rec.state != ECG_REC_RECORDING) {
+    g_ecg_rec.pack_add_drop_count++;
     return;
   }
+
+#if RECORD_TEST_ECG_FIFO_ONLY
+  g_ecg_rec.pack_add_ok_count++;
+  return;
+#endif
 
   if (g_sys_state == SYS_STATE_RECORDING) {
     /* RAM 缓存（短期观察） */
     if (ecg_buf_idx < ECG_BUFFER_SIZE) {
       ecg_buffer[ecg_buf_idx++] = ecg;
     }
+    if (ecg_buf_idx > g_ecg_rec.pack_buffer_level_max) {
+      g_ecg_rec.pack_buffer_level_max = ecg_buf_idx;
+    }
+    g_ecg_rec.pack_add_ok_count++;
 
-    /* 多传感器 block logger (取代旧 ECG_SDLogger_Enqueue) */
+#if RECORD_TEST_ECG_COUNT_ONLY
+    return;
+#endif
+
+    /* 多传感器 block logger (取代�?ECG_SDLogger_Enqueue) */
     MultiSensorLogger_AddECG(ecg);
   }
 }
 
 /**
-  * @brief  Safe_USB_Printf — 调试日志打印
-  * @note   使用 CDC_Transmit_FS_Blocking 阻塞发送，带 200ms 超时。
-  *         仅在采样停止后使用，采样进行中不要高频调用。
+  * @brief  Safe_USB_Printf �?调试日志打印
+  * @note   使用 CDC_Transmit_FS_Blocking 阻塞发送，�?200ms 超时�?
+  *         仅在采样停止后使用，采样进行中不要高频调用�?
   */
 static void APP_USB_LogFlush(uint8_t force)
 {
@@ -1207,7 +1245,7 @@ void Safe_USB_Printf(const char *format, ...)
 
   /* USB 未配置时直接丢弃 */
 
-  /* 格式化 */
+  /* 格式�?*/
   va_list args;
   va_start(args, format);
   int len = vsnprintf(buf, sizeof(buf), format, args);
@@ -1219,7 +1257,7 @@ void Safe_USB_Printf(const char *format, ...)
     buf[len] = '\0';
   }
 
-  /* 阻塞发送 (200ms 超时) */
+  /* 阻塞发�?(200ms 超时) */
   if ((uint32_t)len > USB_LOG_PENDING_SIZE) {
     usb_tx_drop_count++;
     return;
@@ -1246,7 +1284,7 @@ void Safe_USB_Printf(const char *format, ...)
   memcpy(s_usb_log_pending + s_usb_log_pending_len, buf, (size_t)len);
   s_usb_log_pending_len = (uint16_t)(s_usb_log_pending_len + len);
 
-  /* SD 问题定位阶段：每条日志都尽快推出去，避免小包长期留在缓冲里。 */
+  /* SD 问题定位阶段：每条日志都尽快推出去，避免小包长期留在缓冲里�?*/
   if (s_usb_log_pending_len >= 96U ||
       (HAL_GetTick() - s_usb_log_pending_tick) >= 100U) {
     APP_USB_LogFlush(0);

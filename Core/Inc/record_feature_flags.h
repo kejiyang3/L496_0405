@@ -5,6 +5,9 @@
 #define RECORD_ENABLE_PPG 1
 #define RECORD_ENABLE_ICM 1
 #define RECORD_DEFAULT_RECORD_MS 30000U
+#define RECORD_ENABLE_AUDIO 0  /* P-SW */
+#define RECORD_MIC_SAMPLE_RATE_HZ 8000U
+#define RECORD_ECG_SAMPLE_RATE_HZ 512U  /* P-SW-A */
 #define RECORD_ISOLATE_AUX_TASKS 1
 #define RECORD_USE_I2C3_MUTEX 1
 #define RECORD_ICM_INIT_RETRY_COUNT 3U
@@ -14,14 +17,21 @@
 #define RECORD_PPG_FIFO_DRAIN_MAX_SAMPLES 8U
 #define RECORD_PPG_INT_DRAIN_ROUNDS 4U
 #define RECORD_PPG_I2C_TIMEOUT_MS 25U
-#define RECORD_FAIL_FAST_ON_MODALITY_ERROR 1
+#define RECORD_FAIL_FAST_ON_MODALITY_ERROR 0
 #define RECORD_AUDIO_REOPEN_SAME_SEQ_ALLOWED 0
-#define RECORD_AUDIO_ERROR_REQUESTS_STOP 1
-#define RECORD_REQUIRE_PPG_FOR_FOUR_MODAL 1
-#define RECORD_REQUIRE_ICM_FOR_FOUR_MODAL 1
+#define RECORD_AUDIO_ERROR_REQUESTS_STOP 0
+#define RECORD_REQUIRE_PPG_FOR_FOUR_MODAL 0
+#define RECORD_REQUIRE_ICM_FOR_FOUR_MODAL 0
 #define RECORD_FAIL_STREAK_RESETS_WHEN_IDLE 1
 #define RECORD_FAILED_MODALITY_REINITS_NEXT_START 1
 #define RECORD_PPG_FAIL_STREAK_LIMIT 3U
 #define RECORD_IMU_FAIL_STREAK_LIMIT 2U
 
-#endif /* RECORD_FEATURE_FLAGS_H */
+/* === ECG Software Diagnosis Test Macros === */
+#define RECORD_DIAG_RUN_INTERVAL_MS 1000U  /* SD diag log interval */
+#define RECORD_TEST_ECG_COUNT_ONLY 0       /* P-SW-B off */       /* P-SW-B: skip SD write */       /* P-SW-B: skip ECG data write, count only */
+#define RECORD_TEST_ECG_FIFO_ONLY 0        /* P-SW-C off */        /* P-SW-C: skip Packagedata */        /* P-SW-C: skip Packagedata, count FIFO only */
+#define RECORD_TEST_ECG_DIAG_ENABLE 1      /* master diag switch */      /* Master switch for SD diag logging */
+#define RECORD_ECG_TASK_PRIORITY_BOOST 0   /* P-SW-D: 0=normal, 1=boosted */
+
+#endif

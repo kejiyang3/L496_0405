@@ -350,6 +350,10 @@ void App_LVGL_TestUI(void)
 
 void APP_LVGL_Process(void)
 {
+    /* Idle backlight timeout: turn off after UI_BACKLIGHT_IDLE_MS */
+    if (s_backlight_on && (HAL_GetTick() - s_last_touch_tick) >= UI_BACKLIGHT_IDLE_MS) {
+        set_backlight_state(0U);
+    }
     lv_timer_handler();
 }
 

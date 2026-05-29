@@ -48,6 +48,7 @@ uint8_t ble_rx_buf[BLE_RX_BUF_SIZE];
 volatile uint16_t ble_rx_len = 0;
 volatile uint8_t ble_rx_flag = 0;
 volatile uint8_t touch_int_flag = 0;
+volatile uint32_t touch_irq_count = 0;
 extern DMA_HandleTypeDef hdma_usart1_rx;  /* Defined in usart.c for USART1 RX DMA */
 
 volatile uint8_t ecg_streaming = 0;             /* ECG流使能标志 */
@@ -388,6 +389,11 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
   }
   else if (GPIO_Pin == INT_TOUCH_Pin) {
     touch_int_flag = 1U;
+    touch_irq_count++;
+    extern TaskHandle_t LvglTaskHandle;
+    if (LvglTaskHandle != NULL) {
+      vTaskNotifyGiveFromISR(LvglTaskHandle, &xHigherPriorityTaskWoken);
+    }
   }
 
   portYIELD_FROM_ISR(xHigherPriorityTaskWoken);

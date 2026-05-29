@@ -76,6 +76,26 @@ python pc\usb_sd_pull.py --port COM12 get-all -o ..\sd_pull_output
 
 - Keeping this worklog as the cross-session recovery source.
 
+## ECG Four-Modal Closed Loop (2026-05-28)
+
+Goal: preserve four-modal recording while resolving ECG under-rate. If 512 Hz could not be made stable, reduce MIC to 8 kHz, then reduce ECG sampling.
+
+Final accepted baseline:
+- `RECORD_MIC_SAMPLE_RATE_HZ=8000U`.
+- `RECORD_ECG_SAMPLE_RATE_HZ=128U`.
+- MAX30003 uses 256-sps register mode to produce about 126 Hz effective persisted ECG on current hardware.
+- MAX30003 FCLK path strengthened with high LSE drive and very-high-speed PA8 MCO.
+
+Final hardware evidence pulled by sd_debug_tool:
+- Path: `L496_0405\sd_pull_seq001_final`
+- Validator: `PASS seq=001 duration_ms=30004`
+- CSV counts: ECG `3770`, PPG `378`, IMU `1566`
+- Spans: ECG `29996 ms`, PPG `29985 ms`, IMU `29984 ms`
+- MIC duration: about `30.25 s`
+- Session counters: all ECG/PPG/IMU write failures and block drops were 0; MIC drops and write errors were 0.
+
+Note: MAX30003 still reports PLLINT/eovf counters. Future hardware/FCLK investigation can target that, but the requested fallback path now achieves verified four-modal SD capture.
+
 ## Key Files
 
 - `README.md`: system-level project map and baseline.

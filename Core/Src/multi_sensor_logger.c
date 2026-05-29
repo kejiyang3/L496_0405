@@ -33,17 +33,17 @@ void MultiSensorLogger_InitQueue(void)
 }
 
 /* ========== 双缓冲 ========== */
-static ECG_Block_t s_ecg_blocks[2];
-static PPG_Block_t s_ppg_blocks[2];
-static IMU_Block_t s_imu_blocks[2];
+static ECG_Block_t s_ecg_blocks[MS_ECG_BLOCK_COUNT];
+static PPG_Block_t s_ppg_blocks[MS_PPG_BLOCK_COUNT];
+static IMU_Block_t s_imu_blocks[MS_IMU_BLOCK_COUNT];
 
 static uint8_t s_ecg_active = 0;
 static uint8_t s_ppg_active = 0;
 static uint8_t s_imu_active = 0;
 
-static volatile uint8_t s_ecg_block_free[2] = {1, 1};
-static volatile uint8_t s_ppg_block_free[2] = {1, 1};
-static volatile uint8_t s_imu_block_free[2] = {1, 1};
+static volatile uint8_t s_ecg_block_free[MS_ECG_BLOCK_COUNT] = {1, 1, 1, 1};
+static volatile uint8_t s_ppg_block_free[MS_PPG_BLOCK_COUNT] = {1, 1};
+static volatile uint8_t s_imu_block_free[MS_IMU_BLOCK_COUNT] = {1, 1};
 
 static uint32_t s_ecg_seq = 0;
 static uint32_t s_ppg_seq = 0;
@@ -78,7 +78,7 @@ static volatile uint8_t s_file_opened = 0;
 static void submit_ecg_block(uint16_t count)
 {
     uint8_t idx = s_ecg_active;
-    uint8_t next = idx ^ 1;
+    uint8_t next = (uint8_t)((idx + 1U) % MS_ECG_BLOCK_COUNT);
     MS_BlockMsg_t msg;
 
     if (!s_ecg_block_free[next]) {
@@ -118,7 +118,7 @@ static void submit_ecg_block(uint16_t count)
 static void submit_ppg_block(uint16_t count)
 {
     uint8_t idx = s_ppg_active;
-    uint8_t next = idx ^ 1;
+    uint8_t next = (uint8_t)((idx + 1U) % MS_PPG_BLOCK_COUNT);
     MS_BlockMsg_t msg;
 
     if (!s_ppg_block_free[next]) {
@@ -143,7 +143,7 @@ static void submit_ppg_block(uint16_t count)
 static void submit_imu_block(uint16_t count)
 {
     uint8_t idx = s_imu_active;
-    uint8_t next = idx ^ 1;
+    uint8_t next = (uint8_t)((idx + 1U) % MS_IMU_BLOCK_COUNT);
     MS_BlockMsg_t msg;
 
     if (!s_imu_block_free[next]) {
@@ -274,12 +274,16 @@ void MultiSensorLogger_ResetForNewRecording(void)
     s_ecg_submit_fail = 0;
     s_writer_get_count = 0;
 
-    for (int i = 0; i < 2; i++) {
+    for (uint8_t i = 0; i < MS_ECG_BLOCK_COUNT; i++) {
         s_ecg_blocks[i].count = 0;
-        s_ppg_blocks[i].count = 0;
-        s_imu_blocks[i].count = 0;
         s_ecg_block_free[i] = 1;
+    }
+    for (uint8_t i = 0; i < MS_PPG_BLOCK_COUNT; i++) {
+        s_ppg_blocks[i].count = 0;
         s_ppg_block_free[i] = 1;
+    }
+    for (uint8_t i = 0; i < MS_IMU_BLOCK_COUNT; i++) {
+        s_imu_blocks[i].count = 0;
         s_imu_block_free[i] = 1;
     }
     s_ecg_active = 0;

@@ -6,6 +6,7 @@
 #include "ecg_record_control.h"
 #include "sd_debug_log.h"
 #include "cmsis_os.h"
+extern volatile uint32_t ecg_irq_count;
 #include <stdio.h>
 #include <string.h>
 
@@ -58,12 +59,14 @@ static HAL_StatusTypeDef MAX30003_SPI_Transfer(const uint8_t *tx, uint8_t *rx, u
 
     for (uint16_t i = 0; i < len; i++) {
         if (MAX30003_SPI_WaitSet(SPI_FLAG_TXE) != HAL_OK) {
+            g_ecg_rec.max30003_spi_timeout_count++;
             return HAL_TIMEOUT;
         }
 
         *(__IO uint8_t *)&hspi3.Instance->DR = tx[i];
 
         if (MAX30003_SPI_WaitSet(SPI_FLAG_RXNE) != HAL_OK) {
+            g_ecg_rec.max30003_spi_timeout_count++;
             return HAL_TIMEOUT;
         }
 
@@ -81,20 +84,20 @@ static HAL_StatusTypeDef MAX30003_SPI_Transfer(const uint8_t *tx, uint8_t *rx, u
     return HAL_OK;
 }
 
-/* 外部引用 — Packagedata_AddEcgSample 弱实现 (可被外部覆盖) */
+/* 澶栭儴寮曠敤 �?Packagedata_AddEcgSample 寮卞疄鐜?(鍙澶栭儴瑕嗙�? */
 __attribute__((weak)) void Packagedata_AddEcgSample(int16_t ecg)
 {
     (void)ecg;
-    /* 默认空实现, 由外部模块 (如 edf_storage.c) 覆盖 */
+    /* 榛樿绌哄疄�? 鐢卞閮ㄦā鍧?(�?edf_storage.c) 瑕嗙�?*/
 }
 
-/* 安全延时：osDelay 不依赖 HAL tick，内核运行中专用 */
+/* 瀹夊叏寤舵椂锛歰sDelay 涓嶄緷璧?HAL tick锛屽唴鏍歌繍琛屼腑涓撶敤 */
 static void SAFE_Delay(uint32_t ms)
 {
     if (ms > 0) osDelay(ms);
 }
 
-/* DC Lead-Off 状态缓存 */
+/* DC Lead-Off 鐘舵€佺紦�?*/
 static MAX30003_LeadStatus_t g_lead_status = {
     .state = MAX30003_LEAD_UNKNOWN,
     .p_off = 0,
@@ -105,7 +108,7 @@ static MAX30003_LeadStatus_t g_lead_status = {
 };
 
 /**
-  * @brief  CS 引脚初始化
+  * @brief  CS 寮曡剼鍒濆�?
   */
 void MAX30003_CS_Init(void)
 {
@@ -121,7 +124,7 @@ void MAX30003_CS_Init(void)
 }
 
 /**
-  * @brief  写寄存器并读回验证
+  * @brief  鍐欏瘎瀛樺櫒骞惰鍥為獙璇?
   */
 static int MAX30003_WriteVerify(uint8_t reg, uint32_t expected, const char *name)
 {
@@ -159,7 +162,7 @@ static int MAX30003_WriteVerify(uint8_t reg, uint32_t expected, const char *name
 }
 
 /**
-  * @brief  SPI 写寄存器
+  * @brief  SPI 鍐欏瘎瀛樺�?
   */
 HAL_StatusTypeDef MAX30003_WriteReg(uint8_t reg, uint32_t data)
 {
@@ -181,7 +184,7 @@ HAL_StatusTypeDef MAX30003_WriteReg(uint8_t reg, uint32_t data)
 }
 
 /**
-  * @brief  SPI 读寄存器
+  * @brief  SPI 璇诲瘎瀛樺�?
   */
 HAL_StatusTypeDef MAX30003_ReadReg(uint8_t reg, uint32_t *data)
 {
@@ -204,7 +207,7 @@ HAL_StatusTypeDef MAX30003_ReadReg(uint8_t reg, uint32_t *data)
 }
 
 /**
-  * @brief  软件复位
+  * @brief  杞欢澶嶄綅
   */
 void MAX30003_SwReset(void)
 {
@@ -213,7 +216,7 @@ void MAX30003_SwReset(void)
 }
 
 /**
-  * @brief  同步时序
+  * @brief  鍚屾鏃跺簭
   */
 void MAX30003_Synch(void)
 {
@@ -221,7 +224,7 @@ void MAX30003_Synch(void)
 }
 
 /**
-  * @brief  FIFO 复位
+  * @brief  FIFO 澶嶄�?
   */
 void MAX30003_FifoReset(void)
 {
@@ -229,7 +232,7 @@ void MAX30003_FifoReset(void)
 }
 
 /**
-  * @brief  初始化 MAX30003 (仅配置寄存器, 不开启 EINT/EOVF)
+  * @brief  鍒濆鍖?MAX30003 (浠呴厤缃瘎瀛樺�? 涓嶅紑鍚?EINT/EOVF)
   */
 void MAX30003_Init(void)
 {
@@ -247,7 +250,7 @@ void MAX30003_Init(void)
     MAX30003_SwReset();
     SAFE_Delay(20);
 
-    /* 清掉复位后的旧 STATUS */
+    /* 娓呮帀澶嶄綅鍚庣殑�?STATUS */
     APP_USB_LOG("[MAX30003_INIT] step=status1\r\n");
     MAX30003_ReadReg(MAX30003_STATUS, &dummy);
     SAFE_Delay(2);
@@ -267,13 +270,13 @@ void MAX30003_Init(void)
     APP_USB_LOG("[MAX30003] INFO=0x%06lX\r\n", info1);
 #endif
 
-    /* CNFG_ECG: 先配好采样率/增益/滤波，再开 CNFG_GEN */
+    /* CNFG_ECG: 鍏堥厤濂介噰鏍风�?澧炵�?婊ゆ尝锛屽啀寮€ CNFG_GEN */
     APP_USB_LOG("[MAX30003_INIT] step=cnfg_ecg\r\n");
     if (!MAX30003_WriteVerify(MAX30003_CNFG_ECG,
                               MAX30003_CNFG_ECG_NORMAL,
                               "CNFG_ECG")) return;
 
-    /* CNFG_GEN: 一次性写入 EN_ECG + EN_RBIAS + DCLOFF (0x081217) */
+    /* CNFG_GEN: 涓€娆℃€у啓�?EN_ECG + EN_RBIAS + DCLOFF (0x081217) */
     APP_USB_LOG("[MAX30003_INIT] step=cnfg_gen\r\n");
     if (!MAX30003_WriteVerify(MAX30003_CNFG_GEN,
                               MAX30003_CNFG_GEN_NORMAL,
@@ -299,7 +302,7 @@ void MAX30003_Init(void)
                               "CNFG_EMUX")) return;
 #endif
 
-    /* Auto Fast Recovery: 双电极运动场景快速恢复 */
+    /* Auto Fast Recovery: 鍙岀數鏋佽繍鍔ㄥ満鏅揩閫熸仮�?*/
     APP_USB_LOG("[MAX30003_INIT] step=mngr_dyn%s\r\n",
                 MAX30003_INIT_SKIP_MNGR_DYN ? "_skip" : "");
 #if MAX30003_INIT_SKIP_MNGR_DYN
@@ -312,7 +315,7 @@ void MAX30003_Init(void)
                               "MNGR_DYN")) return;
 #endif
 
-    /* 等待 PLL 锁定 */
+    /* 绛夊�?PLL 閿佸�?*/
     APP_USB_LOG("[MAX30003_INIT] step=pll_wait\r\n");
     uint8_t retry = 50;
     while(retry--) {
@@ -326,13 +329,13 @@ void MAX30003_Init(void)
                               MAX30003_EN_INT_IDLE,
                               "EN_INT")) return;
 
-    /* EFIT=4，约 5 个样本触发一次中断 */
+    /* EFIT=4锛岀�?5 涓牱鏈Е鍙戜竴娆′腑�?*/
     APP_USB_LOG("[MAX30003_INIT] step=mngr_int\r\n");
     if (!MAX30003_WriteVerify(MAX30003_MNGR_INT,
                               MAX30003_MNGR_INT_FAST,
                               "MNGR_INT")) return;
 
-    /* 清 FIFO 并同步 */
+    /* �?FIFO 骞跺悓姝?*/
     MAX30003_FifoReset();
     MAX30003_Synch();
 
@@ -341,12 +344,12 @@ void MAX30003_Init(void)
     APP_USB_LOG("[MAX30003] Init done. STATUS=0x%06lX\r\n", dummy);
 #endif
 
-    /* SD 写入诊断阶段不要在传感器初始化里碰 FatFS。
-     * 数据文件打开前的早期 SD 访问会干扰判断，寄存器快照后续放到录制日志里做。 */
+    /* SD 鍐欏叆璇婃柇闃舵涓嶈鍦ㄤ紶鎰熷櫒鍒濆鍖栭噷�?FatFS�?
+     * 鏁版嵁鏂囦欢鎵撳紑鍓嶇殑鏃╂�?SD 璁块棶浼氬共鎵板垽鏂紝瀵勫瓨鍣ㄥ揩鐓у悗缁斁鍒板綍鍒舵棩蹇楅噷鍋氥�?*/
 }
 
 /**
-  * @brief  启动 ECG 采集流 — 开始前重置 FIFO/SYNCH/STATUS
+  * @brief  鍚�?ECG 閲囬泦娴?�?寮€濮嬪墠閲嶇疆 FIFO/SYNCH/STATUS
   */
 void MAX30003_StartStream(void)
 {
@@ -356,18 +359,18 @@ void MAX30003_StartStream(void)
 
     g_max30003_start_step = 10;
 
-    /* 先关闭正常 ECG 中断，避免清 FIFO/SYNCH 期间触发任务通知 */
+    /* 鍏堝叧闂�?ECG 涓柇锛岄伩鍏嶆�?FIFO/SYNCH 鏈熼棿瑙﹀彂浠诲姟閫氱�?*/
     g_max30003_start_step = 20;
     (void)MAX30003_WriteReg(MAX30003_EN_INT, MAX30003_EN_INT_IDLE);
 
-    /* 关键: 真正开始记录前重新 FIFO_RST + SYNCH，清除 Init→Start 之间的旧数据 */
+    /* 鍏抽�? 鐪熸寮€濮嬭褰曞墠閲嶆柊 FIFO_RST + SYNCH锛屾竻闄?Init鈫扴tart 涔嬮棿鐨勬棫鏁版�?*/
     g_max30003_start_step = 30;
     APP_USB_LOG("[MAX30003_INIT] step=fifo_synch\r\n");
     MAX30003_FifoReset();
     g_max30003_start_step = 40;
     MAX30003_Synch();
 
-    /* 连续读两次 STATUS 清掉旧的 sticky flags */
+    /* 杩炵画璇讳袱�?STATUS 娓呮帀鏃х殑 sticky flags */
     g_max30003_start_step = 50;
     (void)MAX30003_ReadReg(MAX30003_STATUS, &status1);
     g_max30003_start_status1 = status1;
@@ -375,7 +378,7 @@ void MAX30003_StartStream(void)
     (void)MAX30003_ReadReg(MAX30003_STATUS, &status2);
     g_max30003_start_status2 = status2;
 
-    /* 打开正常 ECG 中断 */
+    /* 鎵撳紑姝ｅ父 ECG 涓�?*/
     g_max30003_start_step = 70;
     if (MAX30003_WriteReg(MAX30003_EN_INT, MAX30003_EN_INT_NORMAL) != HAL_OK) {
         g_max30003_start_step = 71;
@@ -398,7 +401,7 @@ void MAX30003_StartStream(void)
 }
 
 /**
-  * @brief  停止 ECG 采集流 — 关闭中断并清 FIFO
+  * @brief  鍋滄�?ECG 閲囬泦娴?�?鍏抽棴涓柇骞舵�?FIFO
   */
 void MAX30003_StopStream(void)
 {
@@ -406,7 +409,7 @@ void MAX30003_StopStream(void)
 
     (void)MAX30003_WriteReg(MAX30003_EN_INT, MAX30003_EN_INT_IDLE);
 
-    /* 清 FIFO + SYNCH，避免下一次 Start 带入旧样本 */
+    /* �?FIFO + SYNCH锛岄伩鍏嶄笅涓€�?Start 甯﹀叆鏃ф牱鏈?*/
     MAX30003_FifoReset();
     MAX30003_Synch();
 
@@ -417,26 +420,26 @@ void MAX30003_StopStream(void)
 }
 
 /**
-  * @brief  将 18位 ECG 数据转换为 int16_t
+  * @brief  �?18�?ECG 鏁版嵁杞崲�?int16_t
   */
 int16_t MAX30003_ConvertData(uint32_t raw_data)
 {
     int32_t val;
 
-    // 提取 18 位 ECG 数据 (D[23:6])
+    // 鎻愬�?18 �?ECG 鏁版�?(D[23:6])
     val = (raw_data >> 6) & 0x3FFFF;
 
-    // 符号扩展 (18-bit signed to 32-bit)
+    // 绗﹀彿鎵╁睍 (18-bit signed to 32-bit)
     if (val & 0x20000)
     {
         val |= 0xFFFC0000;
     }
 
-    // 右移 2 位以适应 int16_t 范围 (18-bit -> 16-bit)
-    // 注意: MAX30003 的 ENOB 是 15.5 位，所以丢弃最低 2 位刚好能完美装入 int16_t，同时滤除多余底噪。
+    // 鍙崇Щ 2 浣嶄互閫傚簲 int16_t 鑼冨�?(18-bit -> 16-bit)
+    // 娉ㄦ�? MAX30003 �?ENOB �?15.5 浣嶏紝鎵€浠ヤ涪寮冩渶浣?2 浣嶅垰濂借兘瀹岀編瑁呭叆 int16_t锛屽悓鏃舵护闄ゅ浣欏簳鍣�?
     val >>= 2;
 
-    // 饱和处理，防止溢出
+    // 楗卞拰澶勭悊锛岄槻姝㈡孩�?
     if (val > 32767) val = 32767;
     if (val < -32768) val = -32768;
 
@@ -444,13 +447,13 @@ int16_t MAX30003_ConvertData(uint32_t raw_data)
 }
 
 /**
-  * @brief  Burst 模式读取 FIFO
+  * @brief  Burst 妯″紡璇诲�?FIFO
   */
 static HAL_StatusTypeDef MAX30003_ReadFifoBurst(uint32_t *samples, uint8_t max_samples)
 {
     if (max_samples == 0 || max_samples > FIFO_BURST_SIZE) return HAL_ERROR;
 
-    // 1字节命令 + 每样本3字节
+    // 1瀛楄妭鍛戒护 + 姣忔牱鏈?瀛楄�?
     uint16_t total = 1 + max_samples * 3; 
     uint8_t tx[1 + FIFO_BURST_SIZE * 3] = {0};
     uint8_t rx[1 + FIFO_BURST_SIZE * 3] = {0};
@@ -464,7 +467,7 @@ static HAL_StatusTypeDef MAX30003_ReadFifoBurst(uint32_t *samples, uint8_t max_s
     if (st != HAL_OK) return st;
 
     for (int i = 0; i < max_samples; i++) {
-        int off = 1 + i * 3; // 精简了索引偏移逻辑
+        int off = 1 + i * 3; // 绮剧畝浜嗙储寮曞亸绉婚€昏緫
         samples[i] = ((uint32_t)rx[off] << 16) | ((uint32_t)rx[off+1] << 8) | rx[off+2];
     }
 
@@ -472,7 +475,7 @@ static HAL_StatusTypeDef MAX30003_ReadFifoBurst(uint32_t *samples, uint8_t max_s
 }
 
 /**
-  * @brief  更新 STATUS 相关统计 (PLL seen / edge / last_status)
+  * @brief  鏇存�?STATUS 鐩稿叧缁熻 (PLL seen / edge / last_status)
   */
 static void MAX30003_UpdateStatusStats(uint32_t status_reg)
 {
@@ -482,7 +485,7 @@ static void MAX30003_UpdateStatusStats(uint32_t status_reg)
         g_ecg_rec.pll_status_seen_count++;
         g_ecg_rec.pll_warn_count = g_ecg_rec.pll_status_seen_count;
 
-        /* 边沿检测: 只有从 0→1 才加 edge count */
+        /* 杈规部妫€娴? 鍙湁浠?0�? 鎵嶅�?edge count */
         if (!g_ecg_rec.pll_current_set) {
             g_ecg_rec.pll_edge_count++;
             g_ecg_rec.pll_current_set = 1;
@@ -493,11 +496,24 @@ static void MAX30003_UpdateStatusStats(uint32_t status_reg)
 }
 
 /**
-  * @brief  提取并处理 MAX30003 FIFO 数据 (drain loop, 最多 4 轮)
-  * @note   Burst 读 FIFO，一次 32 word；避免在采样路径里调用阻塞/打印函数。
+  * @brief  鎻愬彇骞跺�?MAX30003 FIFO 鏁版�?(drain loop, 鏈€�?4 �?
+  * @note   Burst �?FIFO锛屼竴娆?32 word锛涢伩鍏嶅湪閲囨牱璺緞閲岃皟鐢ㄩ樆�?鎵撳嵃鍑芥暟�?
   */
 void MAX30003_Task(void)
 {
+    /* DIAG: count calls and track max gap */
+    g_ecg_rec.diag_task_calls++;
+    {
+        uint32_t _now = HAL_GetTick();
+        if (g_ecg_rec.diag_last_call_tick != 0U) {
+            uint32_t _gap = _now - g_ecg_rec.diag_last_call_tick;
+            if (_gap > g_ecg_rec.diag_max_gap_ms) {
+                g_ecg_rec.diag_max_gap_ms = _gap;
+            }
+        }
+        g_ecg_rec.diag_last_call_tick = _now;
+    }
+
     uint8_t drain;
 
     for (drain = 0; drain < 4; drain++) {
@@ -511,7 +527,7 @@ void MAX30003_Task(void)
         MAX30003_UpdateStatusStats(status_reg);
         MAX30003_UpdateLeadStatus(status_reg);
 
-        /* 处理 FIFO overflow */
+        /* 澶勭�?FIFO overflow */
         if (status_reg & MAX30003_STATUS_EOVF) {
             g_ecg_rec.fifo_eovf_count++;
             MAX30003_FifoReset();
@@ -523,21 +539,36 @@ void MAX30003_Task(void)
             return;
         }
 
-        /* 无 EINT 时仍轻量探测 1 个 FIFO word。
-         * 有些调试阶段 EINT/INTB 不稳定，但 FIFO 里可能已有样本。 */
-        if ((status_reg & MAX30003_STATUS_EINT) == 0) {
-            words_to_read = MAX30003_NO_EINT_DRAIN_SAMPLES;
+        /* �?EINT 鏃朵粛杞婚噺鎺㈡�?1 �?FIFO word�?
+         * 鏈変簺璋冭瘯闃舵�?EINT/INTB 涓嶇ǔ瀹氾紝浣?FIFO 閲屽彲鑳藉凡鏈夋牱鏈€?*/
+        if ((status_reg & MAX30003_STATUS_EINT) != 0) {
+            g_ecg_rec.diag_eint_hits++;
         }
 
         uint32_t fifo_words[FIFO_BURST_SIZE];
-        if (MAX30003_ReadFifoBurst(fifo_words, words_to_read) != HAL_OK) {
-            return;
+        g_ecg_rec.max30003_spi_burst_count++;
+        {
+            uint32_t _t0 = HAL_GetTick();
+            HAL_StatusTypeDef _br = MAX30003_ReadFifoBurst(fifo_words, words_to_read);
+            uint32_t _dt = HAL_GetTick() - _t0;
+            if (_dt > 0) {
+                g_ecg_rec.max30003_burst_us_last = _dt * 1000;
+                if (_dt * 1000 > g_ecg_rec.max30003_burst_us_max)
+                    g_ecg_rec.max30003_burst_us_max = _dt * 1000;
+                g_ecg_rec.max30003_burst_us_sum += _dt * 1000;
+                g_ecg_rec.max30003_burst_us_count++;
+            }
+            if (_br != HAL_OK) {
+                g_ecg_rec.max30003_burst_read_error_count++;
+                return;
+            }
         }
 
         for (uint8_t i = 0; i < words_to_read; i++) {
             uint32_t raw_data = fifo_words[i];
 
             uint8_t etag = (raw_data >> 3) & 0x07;
+            if (etag < 8) g_ecg_rec.etag_hist[etag]++;
 
             if (etag == 0x00 || etag == 0x02) {
                 int16_t ecg_val = MAX30003_ConvertData(raw_data);
@@ -579,6 +610,122 @@ void MAX30003_Task(void)
     }
 }
 
+
+
+/* ================================================================
+ * SD Diagnostic Log: writes ECG software stats to SD every 1s
+ * ================================================================ */
+#include "sd_debug_log.h"
+#include "record_feature_flags.h"
+
+static uint32_t _diag_last_log_tick = 0;
+
+void MAX30003_DiagLog_Init(void)
+{
+    char buf[256];
+    uint32_t cnfg_gen = 0, cnfg_ecg = 0;
+    MAX30003_ReadReg(MAX30003_CNFG_GEN, &cnfg_gen);
+    MAX30003_ReadReg(MAX30003_CNFG_ECG, &cnfg_ecg);
+    uint32_t fmstr = (cnfg_gen >> 20) & 0x03U;
+    uint32_t rate  = (cnfg_ecg >> 22) & 0x03U;
+
+    snprintf(buf, sizeof(buf),
+        "INIT,%lu,status=0x%06lX,info=0x%06lX,cnfg_gen=0x%06lX,cnfg_ecg=0x%06lX,fmstr=%lu,rate=%lu,mngr_int=0x%06lX,en_int=0x%06lX",
+        (unsigned long)HAL_GetTick(),
+        (unsigned long)g_ecg_rec.last_status,
+        (unsigned long)g_max30003_init_value,
+        (unsigned long)cnfg_gen, (unsigned long)cnfg_ecg,
+        (unsigned long)fmstr, (unsigned long)rate,
+        0x200000UL, 0x000002UL);
+    SD_DebugLog_WriteLine(buf);
+    _diag_last_log_tick = HAL_GetTick();
+}
+
+void MAX30003_DiagLog_Run(void)
+{
+    uint32_t now = HAL_GetTick();
+    if (now - _diag_last_log_tick < RECORD_DIAG_RUN_INTERVAL_MS) return;
+    _diag_last_log_tick = now;
+
+    char buf[384];
+    snprintf(buf, sizeof(buf),
+        "RUN,%lu,"
+        "task=%lu,irq=%lu,eint=%lu,wake=%lu,timeout=%lu,max_gap=%lu,"
+        "status=0x%06lX,"
+        "fifo_raw=%lu,fifo_valid=%lu,fifo_fast=%lu,fifo_empty=%lu,fifo_last=%lu,eovf=%lu,etag_ovf=%lu,unk=%lu,"
+        "etag=0:%lu,1:%lu,2:%lu,3:%lu,4:%lu,5:%lu,6:%lu,7:%lu,"
+        "pack_in=%lu,pack_drop=%lu,buf_max=%lu,"
+        "sd_written=%lu,sd_drop=%lu,sd_err=%lu,sd_flush=%lu,"
+        "spi_burst=%lu,spi_err=%lu,spi_tmo=%lu,burst_us=%lu,burst_max=%lu",
+        (unsigned long)now,
+        (unsigned long)g_ecg_rec.diag_task_calls,
+        (unsigned long)ecg_irq_count,
+        (unsigned long)g_ecg_rec.diag_eint_hits,
+        (unsigned long)g_ecg_rec.diag_notify_wakes,
+        (unsigned long)g_ecg_rec.diag_notify_timeouts,
+        (unsigned long)g_ecg_rec.diag_max_gap_ms,
+        (unsigned long)g_ecg_rec.last_status,
+        (unsigned long)g_ecg_rec.fifo_sample_count,
+        (unsigned long)g_ecg_rec.fifo_valid_count,
+        (unsigned long)g_ecg_rec.fifo_fast_count,
+        (unsigned long)g_ecg_rec.fifo_empty_count,
+        (unsigned long)g_ecg_rec.fifo_last_count,
+        (unsigned long)g_ecg_rec.fifo_eovf_count,
+        (unsigned long)g_ecg_rec.fifo_etag_overflow_count,
+        (unsigned long)g_ecg_rec.fifo_unknown_etag_count,
+        (unsigned long)g_ecg_rec.etag_hist[0], (unsigned long)g_ecg_rec.etag_hist[1],
+        (unsigned long)g_ecg_rec.etag_hist[2], (unsigned long)g_ecg_rec.etag_hist[3],
+        (unsigned long)g_ecg_rec.etag_hist[4], (unsigned long)g_ecg_rec.etag_hist[5],
+        (unsigned long)g_ecg_rec.etag_hist[6], (unsigned long)g_ecg_rec.etag_hist[7],
+        (unsigned long)g_ecg_rec.pack_add_ok_count,
+        (unsigned long)g_ecg_rec.pack_add_drop_count,
+        (unsigned long)g_ecg_rec.pack_buffer_level_max,
+        (unsigned long)g_ecg_rec.ecg_written_count,
+        (unsigned long)g_ecg_rec.ecg_drop_count,
+        (unsigned long)g_ecg_rec.ecg_drop_count,
+        (unsigned long)g_ecg_rec.sd_sync_count,
+        (unsigned long)g_ecg_rec.max30003_spi_burst_count,
+        (unsigned long)g_ecg_rec.max30003_spi_error_count,
+        (unsigned long)g_ecg_rec.max30003_spi_timeout_count,
+        (unsigned long)g_ecg_rec.max30003_burst_us_last,
+        (unsigned long)g_ecg_rec.max30003_burst_us_max);
+    SD_DebugLog_WriteLine(buf);
+}
+
+void MAX30003_DiagLog_Stop(void)
+{
+    uint32_t duration_ms = g_ecg_rec.stop_tick - g_ecg_rec.start_tick;
+    uint32_t actual_fifo_sps = (duration_ms > 0)
+        ? (g_ecg_rec.fifo_valid_count * 1000UL / duration_ms) : 0;
+    uint32_t actual_sd_sps = (duration_ms > 0)
+        ? (g_ecg_rec.ecg_written_count * 1000UL / duration_ms) : 0;
+
+    char buf[384];
+    snprintf(buf, sizeof(buf),
+        "STOP,%lu,"
+        "duration_ms=%lu,"
+        "fifo_valid=%lu,pack_in=%lu,pack_drop=%lu,"
+        "sd_written=%lu,sd_drop=%lu,sd_err=%lu,"
+        "actual_fifo_sps=%lu,actual_sd_sps=%lu,"
+        "eovf=%lu,etag_ovf=%lu,spi_err=%lu,spi_tmo=%lu,"
+        "max_gap=%lu,burst_max_us=%lu",
+        (unsigned long)HAL_GetTick(),
+        (unsigned long)duration_ms,
+        (unsigned long)g_ecg_rec.fifo_valid_count,
+        (unsigned long)g_ecg_rec.pack_add_ok_count,
+        (unsigned long)g_ecg_rec.pack_add_drop_count,
+        (unsigned long)g_ecg_rec.ecg_written_count,
+        (unsigned long)g_ecg_rec.ecg_drop_count,
+        (unsigned long)g_ecg_rec.ecg_drop_count,
+        (unsigned long)actual_fifo_sps, (unsigned long)actual_sd_sps,
+        (unsigned long)g_ecg_rec.fifo_eovf_count,
+        (unsigned long)g_ecg_rec.fifo_etag_overflow_count,
+        (unsigned long)g_ecg_rec.max30003_spi_error_count,
+        (unsigned long)g_ecg_rec.max30003_spi_timeout_count,
+        (unsigned long)g_ecg_rec.diag_max_gap_ms,
+        (unsigned long)g_ecg_rec.max30003_burst_us_max);
+    SD_DebugLog_WriteLine(buf);
+}
 int32_t MAX30003_Read_Sample(void)
 {
     uint32_t raw_data;

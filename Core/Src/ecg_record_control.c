@@ -24,7 +24,7 @@ ECG_RecordControl_t g_ecg_rec = {
     .mic_write_errors = 0,
     .sd_file_opened = 0,
     .sd_file_closed = 1,
-    .file_seq = 1,
+    .file_seq = 10,  /* Skip old files on full SD */
     .fifo_eovf_count = 0,
     .pll_warn_count = 0,
     .last_status = 0,
@@ -39,7 +39,7 @@ ECG_RecordControl_t g_ecg_rec = {
     .file_name = "0:/ecg_001.csv"
 };
 
-/* 根据当前 file_seq 更新 file_name */
+/* 鏍规嵁褰撳墠 file_seq 鏇存柊 file_name */
 void ECG_UpdateFileName(void)
 {
     snprintf(g_ecg_rec.file_name, sizeof(g_ecg_rec.file_name),
@@ -68,7 +68,7 @@ void ECG_RequestSaveInfo(void)
     g_ecg_rec.request_save_info = 1;
 }
 
-/* 每次开始新记录前重置所有统计 */
+/* 姣忔寮€濮嬫柊璁板綍鍓嶉噸缃墍鏈夌粺璁?*/
 void ECG_ResetStats(void)
 {
     g_ecg_rec.last_status = 0;

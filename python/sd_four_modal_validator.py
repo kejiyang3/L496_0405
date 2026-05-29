@@ -18,6 +18,8 @@ from pathlib import Path
 
 MIN_COVERAGE_RATIO = 0.80
 MAX_MIC_DURATION_RATIO_ERROR = 0.25
+EXPECTED_ECG_RATE_HZ = 128
+MIN_ECG_RATE_RATIO = 0.80
 
 
 @dataclass
@@ -123,6 +125,14 @@ def evaluate_sequence(root: Path, seq: str) -> SequenceResult:
         if duration_ms > 1000 and spans.get(kind, 0) < expected_span:
             problems.append(
                 f"{kind} span too short: {spans.get(kind, 0)} ms < {expected_span:.0f} ms"
+            )
+
+    if duration_ms > 1000 and counts.get("ECG", 0) > 0:
+        ecg_rate_hz = counts["ECG"] * 1000.0 / duration_ms
+        min_ecg_rate_hz = EXPECTED_ECG_RATE_HZ * MIN_ECG_RATE_RATIO
+        if ecg_rate_hz < min_ecg_rate_hz:
+            problems.append(
+                f"ECG rate too low: {ecg_rate_hz:.1f} Hz < {min_ecg_rate_hz:.1f} Hz"
             )
 
     mic_evidence_s = mic_s if mic_s > 0 else session_mic_s

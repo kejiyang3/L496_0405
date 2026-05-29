@@ -69,7 +69,7 @@ void MX_GPIO_Init(void)
   GPIO_InitStruct.Pin = ECG_CS_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  GPIO_InitStruct.Speed = ECG_FCLK_MCO_GPIO_SPEED;
   HAL_GPIO_Init(ECG_CS_GPIO_Port, &GPIO_InitStruct);
 
   /* PPG_INT_Pin (PC2) - EXTI falling edge for MAX30102 FIFO Almost Full */
