@@ -1,4 +1,4 @@
-#ifndef __ECG_RECORD_CONTROL_H__
+﻿#ifndef __ECG_RECORD_CONTROL_H__
 #define __ECG_RECORD_CONTROL_H__
 
 #ifdef __cplusplus
@@ -44,7 +44,7 @@ typedef struct {
     volatile uint32_t fifo_eovf_count;
     volatile uint32_t pll_warn_count;
 
-    /* 新增: STATUS / PLL / FIFO 详细诊断 */
+    /* STATUS / PLL / FIFO diagnostics */
     volatile uint32_t last_status;
     volatile uint32_t pll_status_seen_count;
     volatile uint32_t pll_edge_count;
@@ -56,19 +56,20 @@ typedef struct {
     volatile uint32_t fifo_empty_count;
     volatile uint32_t fifo_etag_overflow_count;
     volatile uint32_t fifo_unknown_etag_count;
-    /* === Deep diagnostics for ECG rate investigation === */
-    volatile uint32_t diag_task_calls;         /* total calls to MAX30003_Task */
-    volatile uint32_t diag_eint_hits;          /* calls where EINT was set */
-    volatile uint32_t diag_max_gap_ms;         /* max ms between consecutive MAX30003_Task calls */
-    volatile uint32_t diag_last_call_tick;     /* tick of last MAX30003_Task call */
-    volatile uint32_t diag_irq_snapshot;       /* ecg_irq_count at snapshot time */
-    volatile uint32_t diag_notify_timeouts;    /* ulTaskNotifyTake timeouts (5ms) */
-    volatile uint32_t diag_notify_wakes;       /* ulTaskNotifyTake wake-by-notification */
 
-    /* === ETAG histogram === */
+    /* Deep diagnostics for ECG rate investigation */
+    volatile uint32_t diag_task_calls;
+    volatile uint32_t diag_eint_hits;
+    volatile uint32_t diag_max_gap_ms;
+    volatile uint32_t diag_last_call_tick;
+    volatile uint32_t diag_irq_snapshot;
+    volatile uint32_t diag_notify_timeouts;
+    volatile uint32_t diag_notify_wakes;
+
+    /* ETAG histogram */
     volatile uint32_t etag_hist[8];
 
-    /* === SPI statistics === */
+    /* SPI statistics */
     volatile uint32_t max30003_spi_read_count;
     volatile uint32_t max30003_spi_write_count;
     volatile uint32_t max30003_spi_burst_count;
@@ -80,24 +81,29 @@ typedef struct {
     volatile uint32_t max30003_burst_us_sum;
     volatile uint32_t max30003_burst_us_count;
 
-    /* === Packagedata layer counters === */
+    /* Packagedata layer counters */
     volatile uint32_t pack_add_attempt_count;
     volatile uint32_t pack_add_ok_count;
     volatile uint32_t pack_add_drop_count;
     volatile uint32_t pack_buffer_level_max;
 
-    /* === SD write layer counters === */
+    /* SD write layer counters */
     volatile uint32_t ecg_sd_write_sample_count;
     volatile uint32_t ecg_sd_write_block_count;
     volatile uint32_t ecg_sd_write_error_count;
     volatile uint32_t ecg_sd_flush_count;
 
+    /* === Diagnostic: SD mutex + audio write timing === */
+    volatile uint32_t diag_sd_mutex_hold_max_ms;
+    volatile uint32_t diag_audio_write_max_ms;
+    volatile uint32_t diag_sd_mutex_contention_count;
+
     volatile uint8_t sd_file_opened;
     volatile uint8_t sd_file_closed;
 
     volatile uint8_t request_save_info;
-    volatile uint32_t auto_stop_ms;   /* >0 时录制自动持续该时长(ms)后停�?*/
-    volatile uint32_t requested_record_ms; /* 下一�?start 的自动停止时�? 0=手动停止 */
+    volatile uint32_t auto_stop_ms;
+    volatile uint32_t requested_record_ms;
 
     volatile uint32_t file_seq;
     char file_name[32];

@@ -1,11 +1,36 @@
-#ifndef RECORD_FEATURE_FLAGS_H
+﻿#ifndef RECORD_FEATURE_FLAGS_H
 #define RECORD_FEATURE_FLAGS_H
 
 #define RECORD_ENABLE_LVGL 1
 #define RECORD_ENABLE_PPG 1
 #define RECORD_ENABLE_ICM 1
 #define RECORD_DEFAULT_RECORD_MS 30000U
-#define RECORD_ENABLE_AUDIO 0  /* P-SW */
+#define RECORD_ENABLE_AUDIO 0  /* P-SW: set 1 to enable full audio */
+
+/* ===== MAX30003 + AudioTask / MIC Conflict Diagnostic ===== */
+/* RECORD_DIAG_CASE: 0=normal, 1=CaseA, 2=CaseB, 3=CaseC, 4=CaseD, 5=CaseE, 6=CaseF */
+#define RECORD_DIAG_CASE 0
+
+#if RECORD_DIAG_CASE >= 1
+  /* Case mode: each case enables exactly one additional layer vs Case A */
+  /* A: OFF OFF OFF OFF OFF | B: OFF ON  OFF OFF OFF | C: IDLE OFF OFF OFF OFF */
+  /* D: ON  ON  ON  OFF OFF | E: ON  ON  ON  ON  OFF | F: ON  ON  ON  ON  ON  */
+  #define RECORD_DIAG_AUDIO_TASK_CREATE   ((RECORD_DIAG_CASE) >= 3)
+  #define RECORD_DIAG_AUDIO_EN_MIC_ON     ((RECORD_DIAG_CASE) == 2 || (RECORD_DIAG_CASE) >= 4)
+  #define RECORD_DIAG_AUDIO_SAI_DMA       ((RECORD_DIAG_CASE) >= 4)
+  #define RECORD_DIAG_AUDIO_MIC_PACK      ((RECORD_DIAG_CASE) >= 5)
+  #define RECORD_DIAG_AUDIO_MIC_SD_WRITE  ((RECORD_DIAG_CASE) == 6)
+  #define RECORD_DIAG_ECG_ONLY_MODE       1  /* Disable PPG/IMU to reduce noise during diag */
+#else
+  /* Normal mode: use feature flags as-is */
+  #define RECORD_DIAG_AUDIO_TASK_CREATE   1
+  #define RECORD_DIAG_AUDIO_EN_MIC_ON     (RECORD_ENABLE_AUDIO)
+  #define RECORD_DIAG_AUDIO_SAI_DMA       (RECORD_ENABLE_AUDIO)
+  #define RECORD_DIAG_AUDIO_MIC_PACK      (RECORD_ENABLE_AUDIO)
+  #define RECORD_DIAG_AUDIO_MIC_SD_WRITE  (RECORD_ENABLE_AUDIO)
+  #define RECORD_DIAG_ECG_ONLY_MODE       0
+#endif
+
 #define RECORD_MIC_SAMPLE_RATE_HZ 8000U
 #define RECORD_ECG_SAMPLE_RATE_HZ 512U  /* P-SW-A */
 #define RECORD_ISOLATE_AUX_TASKS 1
@@ -29,9 +54,13 @@
 
 /* === ECG Software Diagnosis Test Macros === */
 #define RECORD_DIAG_RUN_INTERVAL_MS 1000U  /* SD diag log interval */
-#define RECORD_TEST_ECG_COUNT_ONLY 0       /* P-SW-B off */       /* P-SW-B: skip SD write */       /* P-SW-B: skip ECG data write, count only */
-#define RECORD_TEST_ECG_FIFO_ONLY 0        /* P-SW-C off */        /* P-SW-C: skip Packagedata */        /* P-SW-C: skip Packagedata, count FIFO only */
-#define RECORD_TEST_ECG_DIAG_ENABLE 1      /* master diag switch */      /* Master switch for SD diag logging */
+#define RECORD_TEST_ECG_COUNT_ONLY 0       /* P-SW-B off */
+#define RECORD_TEST_ECG_FIFO_ONLY 0        /* P-SW-C off */
+#define RECORD_TEST_ECG_DIAG_ENABLE 1      /* master diag switch */
 #define RECORD_ECG_TASK_PRIORITY_BOOST 0   /* P-SW-D: 0=normal, 1=boosted */
 
 #endif
+
+
+
+

@@ -1,4 +1,4 @@
-#include "sd_debug_log.h"
+﻿#include "sd_debug_log.h"
 #include "fatfs.h"
 #include "ff.h"
 #include "cmsis_os.h"
@@ -54,8 +54,8 @@ static FRESULT SD_DebugLog_AppendRaw(const char *text)
         }
     }
 
-    /* 已 mount 后，不在每条日志里重复 f_mount。
-     * 数据 CSV 打开后再次 mount 同一卷，可能让已打开的 FIL 对象失效。 */
+    /* 宸?mount 鍚庯紝涓嶅湪姣忔潯鏃ュ織閲岄噸澶?f_mount銆?
+     * 鏁版嵁 CSV 鎵撳紑鍚庡啀娆?mount 鍚屼竴鍗凤紝鍙兘璁╁凡鎵撳紑鐨?FIL 瀵硅薄澶辨晥銆?*/
     res = f_open(&file, s_sd_debug_log_path, FA_OPEN_APPEND | FA_WRITE);
     if (res == FR_OK) {
         FRESULT wr = f_write(&file, text, strlen(text), &bw);
@@ -109,9 +109,11 @@ void SD_DebugLog_StartNewFile(uint32_t seq)
         res = f_open(&file, s_sd_debug_log_path, FA_CREATE_ALWAYS | FA_WRITE);
         if (res == FR_OK) {
             int n = snprintf(line, sizeof(line),
-                             "tick,event\r\n%lu,LOG_FILE_BEGIN,seq=%lu\r\n",
+                             "tick,event\r\n%lu,LOG_FILE_BEGIN,seq=%lu\r\n%lu,DIAG_CASE,%d\r\n",
                              (unsigned long)HAL_GetTick(),
-                             (unsigned long)seq);
+                             (unsigned long)seq,
+                             (unsigned long)HAL_GetTick(),
+                             (int)RECORD_DIAG_CASE);
             if (n > 0 && n < (int)sizeof(line)) {
                 f_write(&file, line, (UINT)n, &bw);
             }
@@ -219,7 +221,7 @@ void SD_DebugLog_WriteSessionSummary(void)
              "%s=%lu,%s=%lu,%s=%lu,%s=%lu,"
              "imu_samples=%lu,imu_write_ok=%lu,imu_write_fail=%lu,imu_drop_blk=%lu,"
              "mic_bytes=%lu,mic_ms=%lu,mic_halves=%lu,mic_drops=%lu,mic_write_errors=%lu,"
-             "sd_bytes=%lu,sd_sync=%lu,writer_blocks=%lu",
+             "sd_bytes=%lu,sd_sync=%lu,writer_blocks=%lu,diag_case=%d,diag_max_gap_ms=%lu,diag_eint=%lu,diag_sd_mtx_max=%lu,diag_audio_wr_max=%lu",
              (unsigned long)seq,
              (unsigned long)seq,
              (unsigned long)seq,
@@ -248,7 +250,12 @@ void SD_DebugLog_WriteSessionSummary(void)
              (unsigned long)g_ecg_rec.mic_write_errors,
              (unsigned long)stats.sd_write_bytes,
              (unsigned long)stats.sd_sync_count,
-             (unsigned long)stats.writer_get_count);
+             (unsigned long)stats.writer_get_count,
+             (int)RECORD_DIAG_CASE,
+             (unsigned long)g_ecg_rec.diag_max_gap_ms,
+             (unsigned long)g_ecg_rec.diag_eint_hits,
+             (unsigned long)g_ecg_rec.diag_sd_mutex_hold_max_ms,
+             (unsigned long)g_ecg_rec.diag_audio_write_max_ms);
     SD_DebugLog_WriteLine(line);
 
     snprintf(path, sizeof(path), "0:/session_%03lu.txt", (unsigned long)seq);
@@ -289,7 +296,7 @@ void SD_DebugLog_WriteSessionSummary(void)
                              "mic_write_errors=%lu\r\n"
                              "sd_write_bytes=%lu\r\n"
                              "sd_sync_count=%lu\r\n"
-                             "writer_blocks=%lu\r\n",
+                             "writer_blocks=%lu,diag_case=%d,diag_max_gap_ms=%lu,diag_eint=%lu,diag_sd_mtx_max=%lu,diag_audio_wr_max=%lu\r\n",
                              (unsigned long)seq,
                              (unsigned long)seq,
                              (unsigned long)seq,
@@ -318,7 +325,12 @@ void SD_DebugLog_WriteSessionSummary(void)
                              (unsigned long)g_ecg_rec.mic_write_errors,
                              (unsigned long)stats.sd_write_bytes,
                              (unsigned long)stats.sd_sync_count,
-                             (unsigned long)stats.writer_get_count);
+                             (unsigned long)stats.writer_get_count,
+             (int)RECORD_DIAG_CASE,
+             (unsigned long)g_ecg_rec.diag_max_gap_ms,
+             (unsigned long)g_ecg_rec.diag_eint_hits,
+             (unsigned long)g_ecg_rec.diag_sd_mutex_hold_max_ms,
+             (unsigned long)g_ecg_rec.diag_audio_write_max_ms);
             if (n > 0 && n < (int)sizeof(line)) {
                 res = f_write(&file, line, (UINT)n, &bw);
                 (void)bw;
@@ -338,3 +350,11 @@ void SD_DebugLog_WriteSessionSummary(void)
         Safe_USB_Printf("[SESSION][ERR] summary path=%s res=%d\r\n", path, res);
     }
 }
+
+
+
+
+
+
+
+

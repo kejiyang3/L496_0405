@@ -1,4 +1,4 @@
-#include "audio_recorder.h"
+﻿#include "audio_recorder.h"
 
 #include "FreeRTOS.h"
 #include "cmsis_os.h"
@@ -161,7 +161,7 @@ static FRESULT audio_write_locked(const void *data, UINT len)
         }
     }
 
-    res = f_write(&s_audio_file, data, len, &bw);
+    if (RECORD_DIAG_AUDIO_MIC_SD_WRITE) { res = f_write(&s_audio_file, data, len, &bw); } else { res = FR_OK; bw = len; }
 
     if (Mtx_SDCardHandle != NULL) {
         osMutexRelease(Mtx_SDCardHandle);
@@ -457,10 +457,10 @@ void AudioRecorder_Task(void *argument)
 
         s_audio_recording_active = 1;
         g_ecg_rec.mic_power_tick = HAL_GetTick();
-        HAL_GPIO_WritePin(EN_MIC_GPIO_Port, EN_MIC_Pin, GPIO_PIN_SET);
+        if (RECORD_DIAG_AUDIO_EN_MIC_ON) { HAL_GPIO_WritePin(EN_MIC_GPIO_Port, EN_MIC_Pin, GPIO_PIN_SET); }
         osDelay(50);
 
-        if (!audio_open_file(seq)) {
+        if (RECORD_DIAG_AUDIO_MIC_SD_WRITE && !audio_open_file(seq)) {
             s_audio_recording_active = 0;
             HAL_GPIO_WritePin(EN_MIC_GPIO_Port, EN_MIC_Pin, GPIO_PIN_RESET);
             if (g_ecg_rec.state == ECG_REC_RECORDING &&
@@ -495,9 +495,12 @@ void AudioRecorder_Task(void *argument)
             (void)notify;
         }
 
-        HAL_StatusTypeDef ret = HAL_SAI_Receive_DMA(&hsai_BlockA1,
+        HAL_StatusTypeDef ret = HAL_OK;
+        if (RECORD_DIAG_AUDIO_SAI_DMA) {
+            ret = HAL_SAI_Receive_DMA(&hsai_BlockA1,
                                                     (uint8_t *)s_audio_dma_buf,
                                                     AUDIO_DMA_WORDS);
+        }
         g_ecg_rec.mic_dma_start_tick = HAL_GetTick();
         osThreadSetPriority(osThreadGetId(), osPriorityNormal1);
         Safe_USB_Printf("[MIC] dma_start ret=%d words=%lu bytes=%lu\r\n",
@@ -512,7 +515,8 @@ void AudioRecorder_Task(void *argument)
             continue;
         }
 
-        while (g_ecg_rec.state == ECG_REC_RECORDING ||
+        if (RECORD_DIAG_AUDIO_SAI_DMA) {
+            while (g_ecg_rec.state == ECG_REC_RECORDING ||
                g_ecg_rec.state == ECG_REC_STOPPING) {
             if (xTaskNotifyWait(0, 0xffffffffUL, &notify,
                                 pdMS_TO_TICKS(200)) == pdTRUE) {
@@ -520,7 +524,7 @@ void AudioRecorder_Task(void *argument)
                     if (g_ecg_rec.mic_first_half_tick == 0U) {
                         g_ecg_rec.mic_first_half_tick = HAL_GetTick();
                     }
-                    if (!audio_write_half(&s_audio_dma_buf[0], AUDIO_DMA_HALF_WORDS)) {
+                    if (RECORD_DIAG_AUDIO_MIC_PACK && !audio_write_half(&s_audio_dma_buf[0], AUDIO_DMA_HALF_WORDS)) {
                         break;
                     }
                 }
@@ -528,7 +532,7 @@ void AudioRecorder_Task(void *argument)
                     if (g_ecg_rec.mic_first_half_tick == 0U) {
                         g_ecg_rec.mic_first_half_tick = HAL_GetTick();
                     }
-                    if (!audio_write_half(&s_audio_dma_buf[AUDIO_DMA_HALF_WORDS],
+                    if (RECORD_DIAG_AUDIO_MIC_PACK && !audio_write_half(&s_audio_dma_buf[AUDIO_DMA_HALF_WORDS],
                                           AUDIO_DMA_HALF_WORDS)) {
                         break;
                     }
@@ -536,6 +540,7 @@ void AudioRecorder_Task(void *argument)
             }
         }
 
+        }
         HAL_SAI_DMAStop(&hsai_BlockA1);
         audio_close_file();
         s_audio_recording_active = 0;
@@ -550,3 +555,8 @@ void AudioRecorder_Task(void *argument)
         }
     }
 }
+
+
+
+
+
