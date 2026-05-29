@@ -503,6 +503,12 @@ void MAX30003_Task(void)
 {
     /* DIAG: count calls and track max gap */
     g_ecg_rec.diag_task_calls++;
+    /* INTB raw GPIO read */
+    if (HAL_GPIO_ReadPin(ECG_INT_GPIO_Port, ECG_INT_Pin) == GPIO_PIN_RESET) {
+        g_ecg_rec.diag_intb_low_count++;
+    } else {
+        g_ecg_rec.diag_intb_high_count++;
+    }
     {
         uint32_t _now = HAL_GetTick();
         if (g_ecg_rec.diag_last_call_tick != 0U) {
@@ -543,6 +549,10 @@ void MAX30003_Task(void)
          * 鏈変簺璋冭瘯闃舵�?EINT/INTB 涓嶇ǔ瀹氾紝浣?FIFO 閲屽彲鑳藉凡鏈夋牱鏈€?*/
         if ((status_reg & MAX30003_STATUS_EINT) != 0) {
             g_ecg_rec.diag_eint_hits++;
+            g_ecg_rec.diag_status_eint_total++;
+        }
+        if ((status_reg & MAX30003_STATUS_EOVF) != 0) {
+            g_ecg_rec.diag_status_eovf_total++;
         }
 
         uint32_t fifo_words[FIFO_BURST_SIZE];

@@ -175,7 +175,7 @@ static FRESULT audio_write_locked(const void *data, UINT len)
     }
 
     uint32_t th = HAL_GetTick();
-    if (RECORD_DIAG_AUDIO_MIC_SD_WRITE) {
+    if (RECORD_DIAG_AUDIO_MIC_SD_WRITE && !RECORD_DIAG_DISABLE_ALL_SD_WRITES) {
 #if RECORD_TEST_AUDIO_DROP_BEFORE_FWRITE
         /* F1: drop before f_write to test if f_write is the necessary trigger */
         res = FR_OK;
@@ -569,7 +569,7 @@ void AudioRecorder_Task(void *argument)
         if (RECORD_DIAG_AUDIO_EN_MIC_ON) { HAL_GPIO_WritePin(EN_MIC_GPIO_Port, EN_MIC_Pin, GPIO_PIN_SET); }
         osDelay(50);
 
-        if (RECORD_DIAG_AUDIO_MIC_SD_WRITE && !audio_open_file(seq)) {
+        if (RECORD_DIAG_AUDIO_MIC_SD_WRITE && !RECORD_DIAG_DISABLE_ALL_SD_WRITES && !audio_open_file(seq)) {
             s_audio_recording_active = 0;
             HAL_GPIO_WritePin(EN_MIC_GPIO_Port, EN_MIC_Pin, GPIO_PIN_RESET);
             if (g_ecg_rec.state == ECG_REC_RECORDING &&
@@ -592,7 +592,7 @@ void AudioRecorder_Task(void *argument)
 
         if (g_ecg_rec.state != ECG_REC_RECORDING ||
             g_ecg_rec.ecg_stream_start_tick == 0U) {
-            audio_close_file();
+            if (!RECORD_DIAG_DISABLE_ALL_SD_WRITES) { audio_close_file(); }
             s_audio_recording_active = 0;
             HAL_GPIO_WritePin(EN_MIC_GPIO_Port, EN_MIC_Pin, GPIO_PIN_RESET);
             osDelay(500);
@@ -617,7 +617,7 @@ void AudioRecorder_Task(void *argument)
                         (unsigned long)AUDIO_DMA_BYTES);
 
         if (ret != HAL_OK) {
-            audio_close_file();
+            if (!RECORD_DIAG_DISABLE_ALL_SD_WRITES) { audio_close_file(); }
             s_audio_recording_active = 0;
             HAL_GPIO_WritePin(EN_MIC_GPIO_Port, EN_MIC_Pin, GPIO_PIN_RESET);
             osDelay(500);
@@ -651,7 +651,7 @@ void AudioRecorder_Task(void *argument)
 
         }
         HAL_SAI_DMAStop(&hsai_BlockA1);
-        audio_close_file();
+        if (!RECORD_DIAG_DISABLE_ALL_SD_WRITES) { audio_close_file(); }
         s_audio_recording_active = 0;
         HAL_GPIO_WritePin(EN_MIC_GPIO_Port, EN_MIC_Pin, GPIO_PIN_RESET);
 

@@ -114,6 +114,10 @@ void SD_DebugLog_Init(void)
 
 void SD_DebugLog_StartNewFile(uint32_t seq)
 {
+#if RECORD_DIAG_DISABLE_SD_DEBUG_LOG || RECORD_DIAG_DISABLE_ALL_SD_WRITES
+    (void)seq;
+    return;
+#endif
     FIL file;
     FRESULT res;
     UINT bw = 0;
@@ -166,6 +170,10 @@ const char *SD_DebugLog_GetPath(void)
 
 void SD_DebugLog_WriteLine(const char *line)
 {
+#if RECORD_DIAG_DISABLE_SD_DEBUG_LOG || RECORD_DIAG_DISABLE_ALL_SD_WRITES
+    (void)line;
+    return;
+#endif
     char buf[192];
     if (line == NULL) return;
     snprintf(buf, sizeof(buf), "%lu,%s\r\n", HAL_GetTick(), line);
@@ -174,6 +182,10 @@ void SD_DebugLog_WriteLine(const char *line)
 
 void SD_DebugLog_WriteEvent(const char *tag, uint32_t value)
 {
+#if RECORD_DIAG_DISABLE_SD_DEBUG_LOG || RECORD_DIAG_DISABLE_ALL_SD_WRITES
+    (void)tag; (void)value;
+    return;
+#endif
     char buf[192];
     if (tag == NULL) return;
     snprintf(buf, sizeof(buf), "%lu,%s,%lu\r\n", HAL_GetTick(), tag, value);
@@ -182,6 +194,9 @@ void SD_DebugLog_WriteEvent(const char *tag, uint32_t value)
 
 void SD_DebugLog_WriteSnapshot(void)
 {
+#if RECORD_DIAG_DISABLE_SD_DEBUG_LOG || RECORD_DIAG_DISABLE_ALL_SD_WRITES
+    return;
+#endif
     char buf[512];
     snprintf(buf, sizeof(buf),
              "%lu,SNAPSHOT,state=%d,seq=%lu,epoch=%lu,ecg_start=%lu,ecg_stop=%lu,"
@@ -254,6 +269,9 @@ void SD_DebugLog_WriteSnapshot(void)
 
 void SD_DebugLog_WriteSessionSummary(void)
 {
+#if RECORD_DIAG_DISABLE_SD_DEBUG_LOG || RECORD_DIAG_DISABLE_ALL_SD_WRITES
+    return;
+#endif
     MS_Stats_t stats;
     FIL file;
     FRESULT res;

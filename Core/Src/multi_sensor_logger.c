@@ -169,7 +169,13 @@ static void submit_imu_block(uint16_t count)
 
 void MultiSensorLogger_AddECG(int16_t ecg)
 {
+#if RECORD_DIAG_DISABLE_CSV_WRITER || RECORD_DIAG_DISABLE_ALL_SD_WRITES
+    /* P2/P4: disable CSV writer ? only count, no queue */
+    g_ecg_rec.ecg_sample_count++;
+    return;
+#else
     if (g_ecg_rec.state != ECG_REC_RECORDING) return;
+#endif
 
     uint8_t idx = s_ecg_active;
     ECG_Block_t *blk = &s_ecg_blocks[idx];

@@ -9,7 +9,7 @@
 
 /* ===== MAX30003 + AudioTask / MIC Conflict Diagnostic ===== */
 /* RECORD_DIAG_CASE: 0=normal, 1=CaseA, 2=CaseB, 3=CaseC, 4=CaseD, 5=CaseE, 6=CaseF */
-#define RECORD_DIAG_CASE 6
+#define RECORD_DIAG_CASE 0
 
 #if RECORD_DIAG_CASE >= 1
   /* Case mode: each case enables exactly one additional layer vs Case A */
@@ -68,6 +68,14 @@
 #define RECORD_TEST_AUDIO_NO_PERIODIC_SYNC 0
 /* P3: non-blocking audio discard: 5ms mutex, no f_sync in recording */
 #define RECORD_FIX_AUDIO_NONBLOCKING_DISCARD 1
+
+/* === Phase 2: CSV/SD global blocking experiments === */
+/* P2: disable CSV writer (MultiSensorLogger_AddECG only counts, no queue) */
+#define RECORD_DIAG_DISABLE_CSV_WRITER 0
+/* P3-doc: disable SD debug log (SD_DebugLog_* no-ops) */
+#define RECORD_DIAG_DISABLE_SD_DEBUG_LOG 0
+/* P4: disable ALL SD writes, RAM counting only */
+#define RECORD_DIAG_DISABLE_ALL_SD_WRITES 0
 
 #endif
 

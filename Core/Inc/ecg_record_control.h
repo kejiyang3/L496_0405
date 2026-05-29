@@ -113,6 +113,13 @@ typedef struct {
     volatile uint32_t diag_audio_write_max_ms;
     volatile uint32_t diag_sd_mutex_contention_count;
 
+    /* === INTB/EXTI raw diagnostics === */
+    volatile uint32_t diag_exti_raw_count;      /* EXTI9_5 ISR invocations */
+    volatile uint32_t diag_intb_low_count;      /* PB6 GPIO read as low */
+    volatile uint32_t diag_intb_high_count;     /* PB6 GPIO read as high */
+    volatile uint32_t diag_status_eint_total;   /* total STATUS.EINT seen */
+    volatile uint32_t diag_status_eovf_total;   /* total STATUS.EOVF seen */
+
     volatile uint8_t sd_file_opened;
     volatile uint8_t sd_file_closed;
 
