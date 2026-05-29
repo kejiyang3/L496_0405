@@ -445,7 +445,7 @@ static uint8_t audio_write_half(uint32_t *src, uint32_t words)
     audio_update_drop_count();
 
     if ((s_audio_halves % AUDIO_SYNC_EVERY_HALVES) == 0U) {
-#if RECORD_TEST_AUDIO_WRITE_ONLY_NO_SYNC || RECORD_TEST_AUDIO_NO_PERIODIC_SYNC
+#if RECORD_TEST_AUDIO_WRITE_ONLY_NO_SYNC || RECORD_TEST_AUDIO_NO_PERIODIC_SYNC || RECORD_FIX_AUDIO_NONBLOCKING_DISCARD
         /* F2/F3: skip periodic header update + f_sync during recording */
         FRESULT sync_res = FR_OK;
 #else
@@ -463,7 +463,7 @@ static uint8_t audio_write_half(uint32_t *src, uint32_t words)
         sync_res = audio_update_header_and_sync_locked();
 #endif
 
-#if !RECORD_TEST_AUDIO_WRITE_ONLY_NO_SYNC && !RECORD_TEST_AUDIO_NO_PERIODIC_SYNC
+#if !RECORD_TEST_AUDIO_WRITE_ONLY_NO_SYNC && !RECORD_TEST_AUDIO_NO_PERIODIC_SYNC && !RECORD_FIX_AUDIO_NONBLOCKING_DISCARD
         if (Mtx_SDCardHandle != NULL) {
             osMutexRelease(Mtx_SDCardHandle);
         }

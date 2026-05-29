@@ -360,7 +360,11 @@ static inline int sd_write_records_checked(FIL *fp, const char *buf, UINT len,
     uint32_t sd_mtx_t0 = HAL_GetTick();
     g_sd_csv_diag.acquire_count++;
     if (Mtx_SDCardHandle != NULL) {
-        osMutexAcquire(Mtx_SDCardHandle, osWaitForever);
+        if (osMutexAcquire(Mtx_SDCardHandle, pdMS_TO_TICKS(50)) != osOK) {
+            g_sd_csv_diag.acquire_timeout++;
+            if (bytes_out) *bytes_out = 0;
+            return 0;
+        }
         uint32_t wms = HAL_GetTick() - sd_mtx_t0;
         g_sd_csv_diag.wait_ms_last = wms;
         if (wms > g_sd_csv_diag.wait_ms_max) g_sd_csv_diag.wait_ms_max = wms;
@@ -522,7 +526,7 @@ void StartTask_MultiSensor_SDWriter(void *argument)
 
         /* 鎵撳紑鏂囦欢 */
         if (Mtx_SDCardHandle != NULL) {
-            if (osMutexAcquire(Mtx_SDCardHandle, pdMS_TO_TICKS(2000)) != osOK) {
+            if (osMutexAcquire(Mtx_SDCardHandle, pdMS_TO_TICKS(100)) != osOK) {
                 Safe_USB_Printf("[MS_SD][ERR] mutex timeout before open\r\n");
                 g_ecg_rec.state = ECG_REC_ERROR;
                 continue;
