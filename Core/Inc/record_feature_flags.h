@@ -23,7 +23,7 @@
   #define RECORD_DIAG_ECG_ONLY_MODE       1  /* Disable PPG/IMU to reduce noise during diag */
 #else
   /* Normal mode: use feature flags as-is */
-  #define RECORD_DIAG_AUDIO_TASK_CREATE   1
+  #define RECORD_DIAG_AUDIO_TASK_CREATE   (RECORD_ENABLE_AUDIO)
   #define RECORD_DIAG_AUDIO_EN_MIC_ON     (RECORD_ENABLE_AUDIO)
   #define RECORD_DIAG_AUDIO_SAI_DMA       (RECORD_ENABLE_AUDIO)
   #define RECORD_DIAG_AUDIO_MIC_PACK      (RECORD_ENABLE_AUDIO)
@@ -60,6 +60,16 @@
 #define RECORD_ECG_TASK_PRIORITY_BOOST 0   /* P-SW-D: 0=normal, 1=boosted */
 
 #endif
+
+
+
+
+
+
+
+
+
+
 
 
 

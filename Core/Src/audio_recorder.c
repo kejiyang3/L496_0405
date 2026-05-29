@@ -155,7 +155,7 @@ static FRESULT audio_write_locked(const void *data, UINT len)
     uint32_t t0 = HAL_GetTick();
 
     if (Mtx_SDCardHandle != NULL) {
-        if (osMutexAcquire(Mtx_SDCardHandle, pdMS_TO_TICKS(1000)) != osOK) {
+        if (osMutexAcquire(Mtx_SDCardHandle, pdMS_TO_TICKS(20)) != osOK) {
             s_audio_mutex_timeouts++;
             return FR_TIMEOUT;
         }
@@ -362,7 +362,7 @@ static uint8_t audio_write_half(uint32_t *src, uint32_t words)
         FRESULT sync_res = FR_OK;
 
         if (Mtx_SDCardHandle != NULL) {
-            if (osMutexAcquire(Mtx_SDCardHandle, pdMS_TO_TICKS(1000)) != osOK) {
+            if (osMutexAcquire(Mtx_SDCardHandle, pdMS_TO_TICKS(20)) != osOK) {
                 s_audio_mutex_timeouts++;
                 g_ecg_rec.mic_drops = s_audio_dma_drops + s_audio_mutex_timeouts;
                 audio_request_session_stop_on_error("MIC_ERROR_SYNC_MUTEX_TIMEOUT_REQUEST_STOP");
@@ -455,6 +455,22 @@ void AudioRecorder_Task(void *argument)
         uint32_t seq = g_ecg_rec.file_seq;
         uint32_t notify = 0;
 
+        /* --- Session latch: prevent hot-loop re-entry --- */
+        static uint32_t handled_seq = 0xFFFFFFFFU;
+        if (g_ecg_rec.sd_file_opened == 0U) {
+            osDelay(20);
+            continue;
+        }
+        if (handled_seq == g_ecg_rec.file_seq) {
+            osDelay(20);
+            continue;
+        }
+        handled_seq = g_ecg_rec.file_seq;
+        if (g_ecg_rec.state != ECG_REC_RECORDING) {
+            handled_seq = 0xFFFFFFFFU;
+        }
+        /* --- End session latch --- */
+
         s_audio_recording_active = 1;
         g_ecg_rec.mic_power_tick = HAL_GetTick();
         if (RECORD_DIAG_AUDIO_EN_MIC_ON) { HAL_GPIO_WritePin(EN_MIC_GPIO_Port, EN_MIC_Pin, GPIO_PIN_SET); }
@@ -502,7 +518,7 @@ void AudioRecorder_Task(void *argument)
                                                     AUDIO_DMA_WORDS);
         }
         g_ecg_rec.mic_dma_start_tick = HAL_GetTick();
-        osThreadSetPriority(osThreadGetId(), osPriorityNormal1);
+        /* priority stays at creation level, below SensorTask */
         Safe_USB_Printf("[MIC] dma_start ret=%d words=%lu bytes=%lu\r\n",
                         ret, (unsigned long)AUDIO_DMA_WORDS,
                         (unsigned long)AUDIO_DMA_BYTES);
@@ -555,6 +571,11 @@ void AudioRecorder_Task(void *argument)
         }
     }
 }
+
+
+
+
+
 
 
 
