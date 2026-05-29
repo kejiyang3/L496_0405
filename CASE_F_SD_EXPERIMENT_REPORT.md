@@ -12,6 +12,11 @@
 | **Original Case F** | CASE=6, all off | **74.7 Hz** | 583 | 1008ms | 25 | - | - | - | - |
 | **F1** (skip f_write) | CASE=6 + DROP_BEFORE_FWRITE=1 | **~75 Hz** | 556 | 1002ms | 25 | 51 | 505 | 1000ms | 1002ms |
 | **F2** (raw f_write) | CASE=6 + WRITE_ONLY_NO_SYNC=1 | **~75 Hz** | 584 | 1002ms | 25 | 58 | 526 | 1000ms | 1002ms |
+| **F3** (no periodic sync) | CASE=6 + NO_PERIODIC_SYNC=1 | **N/A** | — | — | — | — | — | — | — |
+
+> **F3 Note**: AUDIO_SYNC_EVERY_HALVES=128, each half-buffer ~0.25s, so periodic sync fires every ~32s.
+> In a 30-second recording, the periodic sync **never fires**. F3 is functionally identical to Case F.
+> F3 was implicitly tested — periodic f_sync/header-update is NOT the bottleneck for 30s recordings.
 | **F2 + FS_TIMEOUT=10** | + _FS_TIMEOUT=10 | **51 Hz** | 410 | 1002ms | 26 | 54 | 356 | 997ms | - |
 | **F2 + FS_TIMEOUT=50+MUTEX** | + _FS_TIMEOUT=50, _USE_MUTEX=1 | **89 Hz** | 697 | 1002ms | 25 | 59 | 638 | 1000ms | 1002ms |
 | **P3** (non-blocking) | CASE=6 + NONBLOCKING + FS50+MUTEX | **130.7 Hz** | 1010 | 1002ms | 22 | 65 | 945 | **9ms** | **45ms** |
