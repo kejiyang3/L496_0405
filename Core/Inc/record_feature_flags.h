@@ -5,7 +5,7 @@
 #define RECORD_ENABLE_PPG 1
 #define RECORD_ENABLE_ICM 1
 #define RECORD_DEFAULT_RECORD_MS 30000U
-#define RECORD_ENABLE_AUDIO 0  /* chip-level validation: no audio */
+#define RECORD_ENABLE_AUDIO 1
 
 /* ===== MAX30003 + AudioTask / MIC Conflict Diagnostic ===== */
 /* RECORD_DIAG_CASE: 0=normal, 1=CaseA, 2=CaseB, 3=CaseC, 4=CaseD, 5=CaseE, 6=CaseF */
@@ -20,7 +20,7 @@
   #define RECORD_DIAG_AUDIO_SAI_DMA       ((RECORD_DIAG_CASE) >= 4)
   #define RECORD_DIAG_AUDIO_MIC_PACK      ((RECORD_DIAG_CASE) >= 5)
   #define RECORD_DIAG_AUDIO_MIC_SD_WRITE  ((RECORD_DIAG_CASE) == 6)
-  #define RECORD_DIAG_ECG_ONLY_MODE       1  /* Disable PPG/IMU to reduce noise during diag */
+  #define RECORD_DIAG_ECG_ONLY_MODE       0
 #else
   /* Normal mode: use feature flags as-is */
   #define RECORD_DIAG_AUDIO_TASK_CREATE   (RECORD_ENABLE_AUDIO)
@@ -28,7 +28,7 @@
   #define RECORD_DIAG_AUDIO_SAI_DMA       (RECORD_ENABLE_AUDIO)
   #define RECORD_DIAG_AUDIO_MIC_PACK      (RECORD_ENABLE_AUDIO)
   #define RECORD_DIAG_AUDIO_MIC_SD_WRITE  (RECORD_ENABLE_AUDIO)
-  #define RECORD_DIAG_ECG_ONLY_MODE       1  /* chip-level validation */
+  #define RECORD_DIAG_ECG_ONLY_MODE       0
 #endif
 
 #define RECORD_MIC_SAMPLE_RATE_HZ 8000U
@@ -99,7 +99,7 @@
 /* P3-doc: disable SD debug log (SD_DebugLog_* no-ops) */
 #define RECORD_DIAG_DISABLE_SD_DEBUG_LOG 0
 /* P4: disable ALL SD writes, RAM counting only */
-#define RECORD_DIAG_DISABLE_ALL_SD_WRITES 1  /* chip-level validation: no SD */
+#define RECORD_DIAG_DISABLE_ALL_SD_WRITES 0
 
 #endif
 
