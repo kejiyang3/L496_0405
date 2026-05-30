@@ -1,4 +1,4 @@
-﻿# Codex Worklog
+# Codex Worklog
 
 Purpose: keep the project recoverable when a Codex conversation gets long or compact fails.
 
@@ -71,6 +71,35 @@ python pc\usb_sd_pull.py --port COM12 get-all -o ..\sd_pull_output
 - Closed-loop process formalized and documented.
 - Multiple validation runs: short (30s) and long (10min+) 鈥?all modalities verified via SD artifacts.
 - Known issue: ECG effective rate ~244 Hz vs configured 512 SPS. Root cause under investigation.
+
+
+## BLE 状态机 + 闭环验证 (2026-05-30)
+
+**BLE 状态机实现:**
+- 新增 Core/Inc/ble_state_machine.h / Core/Src/ble_state_machine.c
+- 支持 7 条命令: PING/START/STOP/STATUS/FNAME/INFO/SYNC
+- StartTask_BLE 接入行解析 + BLE_SM_Send UART 响应通道
+- 编译 0 错误 0 警告，Flash 402KB (78.5%)
+- 已合入 master，推送 GitHub
+
+**闭环验证 (20260530_210000):**
+- 烧录: ✅ Verified OK (主固件 + sd_debug_tool)
+- 录音时长: 94.2s (配置 90s)
+- ECG: 35,187 samples @ ~374 Hz (73% of 512 Hz), 18 EOVF
+- PPG: 1,140 samples @ ~12 Hz (FIFO averaging)
+- IMU: 4,688 samples @ ~50 Hz (I2C3 sharing)
+- MIC: 73,728 samples, 仅 9.2s 有效 — 🔴 掉块问题
+- SD 写入错误: 0
+- 详细报告: CLOSED_LOOP_20260530_DIAG_REPORT.md
+
+**飞书同步:**
+- 软件表 BLE通信: 未开始 → 进行中
+- 变更记录表: 新增 BLE 状态机实现记录
+
+**发现的问题:**
+1. 🔴 音频 9.2s 后中断 (mic_drop_blocks=2, error_count=1)
+2. ⚠️ ECG 512Hz → ~374Hz, 96% 超时轮询 (notify_wakes=45 vs timeouts=8963)
+3. ⚠️ PPG ~12Hz / IMU ~50Hz 低于配置速率
 
 ## In Progress
 
