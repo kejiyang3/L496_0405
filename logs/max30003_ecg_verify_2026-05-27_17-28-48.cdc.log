@@ -1,0 +1,158 @@
+[17:28:48.879] ✅ 连接成功，开始接收数据
+[17:29:03.462] ⚠ 串口异常: ClearCommError failed (PermissionError(13, '设备不识别此命令。', None, 22))
+[17:29:03.464] ⚠ 连接断开，等待重连...
+[17:29:03.748] ❌ 连接失败，重试中...
+[17:29:07.086] ❌ 连接失败，重试中...
+[17:29:10.377] ❌ 连接失败，重试中...
+[17:29:13.683] ❌ 连接失败，重试中...
+[17:29:15.772] ✅ 连接成功，开始接收数据
+[17:29:15.772] 📈 累计重连次数: 2
+[17:29:18.305] [SYS] RTOS Started, USB CDC Ready!
+[17:29:18.305] [ECG_V1] Sensor task started
+[17:29:18.570] [SENSOR_INIT]
+[17:29:18.570] [MAX30102] I2C CALL FAIL, DEVICE NOT FOUND
+[17:29:18.570] [ICM20948] INIT OK (WHO_AM_I + 10x probe passed)
+[17:29:18.601] [/SENSOR_INIT]
+[17:29:18.602] [SENSOR] before MAX30003_Init
+[17:29:18.602] [MAX30003] Initializing...
+[17:29:18.603] [MAX30003_INIT] step=cs
+[17:29:18.633] [MAX30003_INIT] step=sw_reset
+[17:29:18.634] [MAX30003_INIT] step=status1
+[17:29:18.634] [MAX30003_INIT] step=status2
+[17:29:18.635] [MAX30003_INIT] step=info1
+[17:29:18.635] step=info2
+[17:29:18.635] [MAX30003_INIT] step=info3
+[17:29:18.636] [MAX3000
+[17:29:18.636] [MAX30003_INIT] step=cnfg_ecg
+[17:29:18.636] NFG_ECG = 0x025000
+[17:29:18.743] [MAX30003_INIT] step=cnfg_gen
+[17:29:18.743] [MAX30003][OK] CNFG_GEN = 0x081217
+[17:29:18.744] [MAX30003][OK] CNFG_CAL = 0x000000
+[17:29:18.744] [MAX30003][OK] CNFG_EMUX = 0x000000
+[17:29:18.744] [MAX30003_INIT] step=mngr_dyn_skip
+[17:29:18.758] [MAX30003_INIT] step=pll_wait
+[17:29:18.758] [MAX30003_INIT] step=en_int
+[17:29:18.790] [MAX30003][OK] EN_INT = 0x000002
+[17:29:18.790] [MAX30003_INIT] step=mngr_int
+[17:29:18.790] [MAX30003][OK] MNGR_INT = 0x200000
+[17:29:18.837] [MAX30003] Init done. STATUS=0x000100
+[17:29:18.838] [SENSOR] after MAX30003_Init
+[17:29:18.838] [SENSOR] after MAX30003_INIT_DONE log
+[17:29:18.961] [SDDBG] new log opened path=0:/log_001.txt
+[17:29:18.962] [MS_SD] mount begin file=0:/ecg_001.csv
+[17:29:18.962] [MS_SD] mount ok
+[17:29:18.963] [MS_SD] open begin file=0:/ecg_001.csv
+[17:29:18.963] [MS_SD] open ok
+[17:29:18.963] [MS_SD] header ok bw=41
+[17:29:18.963] [MS_SD] first sync res=0
+[17:29:18.963] [MS_SD] file opened and released
+[17:29:18.964] [REC] record start file_opened=1 tick=3573
+[17:29:18.964] [MIC] open ok file=0:/mic_001.wav
+[17:29:29.069] 100109 status3=0x100109
+[17:29:29.478] [REC] after MAX30003_StartStream tick=3700 start_tick=3691
+[17:29:29.478] [MIC] dma_start ret=0 words=16384 bytes=65536
+[17:29:29.478] [ECG_AUTO_STOP] t=13692
+[17:29:29.479] [MAX30003] StopStream done. STATUS=0x100109
+[17:29:29.479] [REC_STOP]
+[17:29:29.652] [MS_SD] close final_sync=0 close=0 bytes=172426 ecg_written=5105
+[17:29:29.652] [MIC] close seek=0 write=0 bw=44 sync=0 close=0 bytes=385024 halves=47 drops=0 timeout=0 maxwr=65
+[17:29:29.684] [SESSION] summary saved path=0:/session_001.txt
+[17:29:29.716] [DUMP_REQ]
+[17:29:29.732] [LOG_FILE_BEGIN]
+[17:29:29.763] tick,event
+[17:29:29.764] 3500,LOG_FILE_BEGIN,seq=1
+[17:29:29.810] 14138,MULTI_STATS,seq=1,epoch=3523,ecg_start=3691,ecg_stop=13695,mic_dma_start=3698,mic_first_half=3917,m[DUMP_BEGIN]
+[17:29:29.888] ic_stop=0,ecg_samples=5105,ecg_write_ok=5105,ecg_write_fail=0,ppg_samples=0,ppg_write_14151,MULTI_SENSOR_RECORD_STOPPED
+[17:29:29.952] 14158,IMU_STATS,read_ok=521,read_fail=0,samples=521,write_ok=521,write_fail=0,drop_blk=0
+[17:29:29.999] 14197,MIC_STATS,bytes=385024,halves=47,irq_halves=47,missed_halves=0,drops=0,timeout=0,maxwr=65,pcm_min=-693,pcm_max=1645
+[17:29:30.422] 14215,SNAPSHOT,state=3,seq=1,epoch=3523,ecg_start=3691,ecg_stop=13695,mic_power=3583,mic_open=3687,mic_dma=3698,mic_first_half=3917,mic_stop=14197,mic_bytes=385024,mic_halves=47,mic_drops=0,mic_write_errors=0,samples=5105,written=5105,drop=0,bytes=172426,sync=2,fifo=5105,valid=5105,fast=0,last=2045,eovf=0,etag_ovf=0,etag_unknown=0,pll_seen=5805,pll_edge=649,status=0xD00309
+[17:30:14.501] ⚠ 串口异常: ClearCommError failed (PermissionError(13, '设备不识别此命令。', None, 22))
+[17:30:14.504] 14229,SESSION_FINAL,seq=1,ecg_file=ecg_001.csv,mic_file=mic_001.wav,log_file=log_001.txt,duration_ms=10004,ecg_samples=5105,ecg_write_ok=5105,ecg_write_f
+[17:30:14.505] 📊 本次连接统计: 59行数据
+[17:30:14.509] ⚠ 连接断开，等待重连...
+[17:30:14.767] ❌ 连接失败，重试中...
+[17:30:15.440] ✅ 连接成功，开始接收数据
+[17:30:15.444] 📈 累计重连次数: 3
+[17:30:17.590] [SYS] RTOS Started, USB CDC Ready!
+[17:30:17.590] [ECG_V1] Sensor task started
+[17:30:17.857] [SENSOR_INIT]
+[17:30:17.858] [MAX30102] I2C CALL FAIL, DEVICE NOT FOUND
+[17:30:17.858] [ICM20948] INIT OK (WHO_AM_I + 10x probe passed)
+[17:30:17.888] [/SENSOR_INIT]
+[17:30:17.889] [SENSOR] before MAX30003_Init
+[17:30:17.889] [MAX30003] Initializing...
+[17:30:17.890] [MAX30003_INIT] step=cs
+[17:30:17.921] step=sw_reset
+[17:30:17.921] [MAX30003_INIT] step=status1
+[17:30:17.924] [MAX30003_INIT] step=status2
+[17:30:17.925] [MAX30003_INIT] step=info1
+[17:30:17.925] 3] INFO=0x513639
+[17:30:17.925] [MAX30003_INIT] step=cnfg_ecg
+[17:30:17.925] [MAX30003][OK] CNFG_ECG = 0x025000
+[17:30:17.925] [MAX30003_INIT] step=cnfg_gen
+[17:30:17.926] [MAX30003][OK] CNFG_GEN = 0x081217
+[17:33:56.445] ⚠ 串口异常: ClearCommError failed (PermissionError(13, '设备不识别此命令。', None, 22))
+[17:33:56.446] 📊 本次连接统计: 18行数据
+[17:33:56.449] ⚠ 连接断开，等待重连...
+[17:33:56.707] ❌ 连接失败，重试中...
+[17:33:57.366] ✅ 连接成功，开始接收数据
+[17:33:57.366] 📈 累计重连次数: 4
+[17:33:59.540] [SYS] RTOS Started, USB CDC Ready!
+[17:33:59.540] [ECG_V1] Sensor task started
+[17:33:59.806] [SENSOR_INIT]
+[17:33:59.807] [MAX30102] I2C CALL FAIL, DEVICE NOT FOUND
+[17:33:59.807] [ICM20948] INIT OK (WHO_AM_I + 10x probe passed)
+[17:33:59.822] [/SENSOR_INIT]
+[17:33:59.822] [SENSOR] before MAX30003_Init
+[17:33:59.822] [MAX30003] Initializing...
+[17:33:59.823] [MAX30003_INIT] step=cs
+[17:33:59.853] step=sw_reset
+[17:33:59.853] [MAX30003_INIT] step=status1
+[17:33:59.868] [MAp=status2
+[17:33:59.868] [MAX30003_INIT] step=info1
+[17:33:59.869] step=info2
+[17:33:59.869] [MAX30003_INIT] step=info3
+[17:33:59.869] [MAX30003] INFO=0x513639
+[17:33:59.869] [MAX30003_INIT] step=cnfg_ecg
+[17:33:59.979] n
+[17:33:59.980] [MAX30003][OK] CNFG_GEN = 0x081217
+[17:33:59.981] NFG_CAL = 0x000000
+[17:33:59.982] [MAX30003][OK] CNFG_EMUX = 0x000000
+[17:33:59.982] [MAX30003_INIT] step=mngr_dyn_skip
+[17:33:59.982] [MAX30003_INIT] step=pll_wait
+[17:33:59.983] [MAX30003_INIT] step=en_int
+[17:34:00.071] [MAX30003][OK] EN_INT = 0x000002
+[17:34:00.071] [MAX30003_INIT] step=mngr_int
+[17:34:00.072] [MAX30003][OK] MNGR_INT = 0x200000
+[17:34:00.119] [MAX30003] Init done. STATUS=0x000100
+[17:34:00.119] [SENSOR] after MAX30003_Init
+[17:34:00.120] [SENSOR] after MAX30003_INIT_DONE log
+[17:34:00.230] [SDDBG] new log opened path=0:/log_001.txt
+[17:34:00.230] [MS_SD] mount begin file=0:/ecg_001.csv
+[17:34:00.231] [MS_SD] mount ok
+[17:34:00.231] [MS_SD] open begin file=0:/ecg_001.csv
+[17:34:00.231] [MS_SD] open ok
+[17:34:00.231] [MS_SD] header ok bw=41
+[17:34:00.232] [MS_SD] first sync res=0
+[17:34:00.245] [MS_SD] file opened and released
+[17:34:00.245] [REC] record start file_opened=1 tick=3619
+[17:34:00.246] [MIC] open ok file=0:/mic_001.wav
+[17:34:10.341] p=fifo_synch
+[17:34:10.341] [MAX30003] StartStream status1=0x100109 status2=0x100109 status3=0x100109
+[17:34:11.155] [REC] after MAX30003_StartStream tick=3736 start_tick=3727
+[17:34:11.155] [MIC] dma_start ret=0 words=16384 bytes=65536
+[17:34:11.233] [ECG_AUTO_STOP] t=13731
+[17:34:11.233] [MAX30003] StopStream done. STATUS=0x100109
+[17:34:11.234] [REC_STOP]
+[17:34:11.311] [MS_SD] close final_sync=0 close=0 bytes=194349 ecg_written=5108
+[17:34:11.579] [MIC] close seek=0 write=0 bw=44 sync=0 close=0 bytes=409600 halves=50 drops=0 timeout=0 maxwr=88
+[17:34:11.610] [SESSION] summary saved path=0:/session_001.txt
+[17:34:11.625] [DUMP_REQ]
+[17:34:11.656] [LOG_FILE_BEGIN]
+[17:34:11.657] tick,event
+[17:34:11.657] 3495,LOG_FILE_BEGIN,seq=1
+[17:34:11.765] 14527,MULTI_STATS,seq=1,epoch=3519,ecg_start=3727,ecg_stop=13734,mic_dma_start=3734,mic_first_half=3953,mic_stop=0,ecg_samples=5108,ecg_write_ok=5108,ecg[DUMP_BEGIN]
+[17:34:11.812] _write_fail=0,ppg_samples=0,ppg_write_14539,MULTI_SENSOR_RECORD_STOPPED
+[17:34:11.858] 14547,IMU_STATS,read_ok=1037,read_fail=0,samples=1037,write_ok=1037,write_fail=0,drop_blk=0
+[17:34:11.936] 14702,MIC_STATS,bytes=409600,halves=50,irq_halves=50,missed_halves=0,drops=0,timeout=0,maxwr=88,pcm_min=-722,pcm_max=1643
+[17:34:12.122] 14735,SNAPSHOT,state=3,seq=1,epoch=3519,ecg_start=3727,ecg_stop=13734,mic_power=3620,mic_open=3724,mic_dma=3734,mic_first_half=3953,mic_stop=14702,mic_bytes=409600,mic_halves=50,mic_drops=0,mic_write_errors=0,samples=5108,written=5108,drop=0,bytes=194349,sync=2,fifo=5108,valid=5108,fast=0,last=2043,eovf=0,etag_ovf=0,etag_unknown=0,pll_seen=5773,pll_edge=665,status=0xD00309

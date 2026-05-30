@@ -25,7 +25,7 @@ extern SPI_HandleTypeDef hspi1;
  * This is a trade-off between memory usage and DMA transfer frequency.
  */
 #ifndef LV_PORT_DISP_BUF_HEIGHT
-#define LV_PORT_DISP_BUF_HEIGHT 20
+#define LV_PORT_DISP_BUF_HEIGHT 8
 #endif
 
 /**

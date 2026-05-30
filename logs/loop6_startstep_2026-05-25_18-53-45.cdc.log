@@ -1,0 +1,18 @@
+[18:53:46.230] ❌ 连接失败，重试中...
+[18:53:49.482] ❌ 连接失败，重试中...
+[18:53:51.524] ✅ 连接成功，开始接收数据
+[18:53:53.977] [ECG_V1] Sensor task started
+[18:53:53.993] [SENSOR] before MAX30003_Init
+[18:53:54.136] [SENSOR] after MAX30003_Init
+[18:53:54.151] [SENSOR] after MAX30003_INIT_DONE log
+[18:53:54.198] [SDDBG] new log opened path=0:/log_001.txt
+[18:53:54.198] [MS_SD] mount begin file=0:/ecg_001.csv
+[18:53:54.213] [MS_SD] mount ok
+[18:53:54.213] [MS_SD] open begin file=0:/ecg_001.csv
+[18:53:54.229] [MS_SD] open ok
+[18:53:54.229] [MS_SD] header ok bw=41
+[18:53:54.244] [MS_SD] first sync res=0
+[18:53:54.260] [MS_SD] file opened and released
+[18:53:54.276] [REC] record start file_opened=1 tick=3332
+[18:53:54.276] [REC] before MAX30003_StartStream tick=3333
+[18:53:54.276] [REC] after MAX30003_StartStream tick=3334 start_tick=3261

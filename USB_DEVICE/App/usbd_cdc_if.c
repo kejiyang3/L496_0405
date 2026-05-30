@@ -28,6 +28,8 @@ extern volatile uint8_t is_usb_streaming;
 
 /* For osKernelGetState / osDelay in blocking transmit */
 #include "cmsis_os.h"
+#include "ecg_record_control.h"
+#include <string.h>
 
 /* USER CODE END INCLUDE */
 
@@ -100,6 +102,12 @@ uint8_t UserRxBufferFS[APP_RX_DATA_SIZE];
 uint8_t UserTxBufferFS[APP_TX_DATA_SIZE];
 
 /* USER CODE BEGIN PRIVATE_VARIABLES */
+static uint8_t CdcTxWorkBuffer[APP_TX_DATA_SIZE];
+static volatile uint32_t CdcTxStartTick = 0U;
+volatile uint32_t g_cdc_rx_count = 0U;
+volatile uint32_t g_cdc_rx_last_len = 0U;
+volatile uint8_t g_cdc_rx_last_cmd[16];
+#define CDC_TX_STUCK_TIMEOUT_MS 1000U
 
 /* USER CODE END PRIVATE_VARIABLES */
 
@@ -113,6 +121,7 @@ uint8_t UserTxBufferFS[APP_TX_DATA_SIZE];
   */
 
 extern USBD_HandleTypeDef hUsbDeviceFS;
+extern PCD_HandleTypeDef hpcd_USB_OTG_FS;
 
 /* USER CODE BEGIN EXPORTED_VARIABLES */
 
@@ -134,6 +143,10 @@ static int8_t CDC_Receive_FS(uint8_t* pbuf, uint32_t *Len);
 static int8_t CDC_TransmitCplt_FS(uint8_t *pbuf, uint32_t *Len, uint8_t epnum);
 
 /* USER CODE BEGIN PRIVATE_FUNCTIONS_DECLARATION */
+static uint8_t CDC_CommandMatches(const uint8_t *buf, uint32_t len, const char *cmd);
+static uint8_t CDC_IsReady(void);
+static USBD_CDC_HandleTypeDef *CDC_GetHandle(void);
+static void CDC_RecoverStuckTx(void);
 
 /* USER CODE END PRIVATE_FUNCTIONS_DECLARATION */
 
@@ -161,6 +174,7 @@ static int8_t CDC_Init_FS(void)
   /* Set Application Buffers */
   USBD_CDC_SetTxBuffer(&hUsbDeviceFS, UserTxBufferFS, 0);
   USBD_CDC_SetRxBuffer(&hUsbDeviceFS, UserRxBufferFS);
+  (void)USBD_CDC_ReceivePacket(&hUsbDeviceFS);
   return (USBD_OK);
   /* USER CODE END 3 */
 }
@@ -270,7 +284,26 @@ static int8_t CDC_Control_FS(uint8_t cmd, uint8_t* pbuf, uint16_t length)
 static int8_t CDC_Receive_FS(uint8_t* Buf, uint32_t *Len)
 {
   /* USER CODE BEGIN 6 */
-  (void)Len;
+  uint32_t rx_len = (Len != NULL) ? *Len : 0U;
+
+  if (Buf != NULL && rx_len > 0U) {
+    g_cdc_rx_count++;
+    g_cdc_rx_last_len = rx_len;
+    memset((void *)g_cdc_rx_last_cmd, 0, sizeof(g_cdc_rx_last_cmd));
+    memcpy((void *)g_cdc_rx_last_cmd, Buf,
+           (rx_len < sizeof(g_cdc_rx_last_cmd)) ? rx_len : sizeof(g_cdc_rx_last_cmd));
+
+    if (CDC_CommandMatches(Buf, rx_len, "START")) {
+      ECG_RequestStart();
+    } else if (CDC_CommandMatches(Buf, rx_len, "STOP")) {
+      ECG_RequestStop();
+    } else if (CDC_CommandMatches(Buf, rx_len, "INFO")) {
+      ECG_RequestUsbInfo();
+    } else if (CDC_CommandMatches(Buf, rx_len, "SNAP")) {
+      ECG_RequestSaveInfo();
+    }
+  }
+
   USBD_CDC_SetRxBuffer(&hUsbDeviceFS, &Buf[0]);
   USBD_CDC_ReceivePacket(&hUsbDeviceFS);
   return (USBD_OK);
@@ -296,17 +329,24 @@ uint8_t CDC_Transmit_FS(uint8_t* Buf, uint16_t Len)
     return USBD_FAIL;
   }
 
-  if (hUsbDeviceFS.dev_state != USBD_STATE_CONFIGURED ||
-      hUsbDeviceFS.pClassData == NULL) {
+  if (Len > sizeof(CdcTxWorkBuffer) || !CDC_IsReady()) {
     return USBD_FAIL;
   }
 
-  USBD_CDC_HandleTypeDef *hcdc = (USBD_CDC_HandleTypeDef*)hUsbDeviceFS.pClassData;
-  if (hcdc->TxState != 0){
+  USBD_CDC_HandleTypeDef *hcdc = CDC_GetHandle();
+  CDC_RecoverStuckTx();
+
+  if (hcdc == NULL || hcdc->TxState != 0U) {
     return USBD_BUSY;
   }
-  USBD_CDC_SetTxBuffer(&hUsbDeviceFS, Buf, Len);
+
+  memcpy(CdcTxWorkBuffer, Buf, Len);
+  CdcTxStartTick = HAL_GetTick();
+  USBD_CDC_SetTxBuffer(&hUsbDeviceFS, CdcTxWorkBuffer, Len);
   result = USBD_CDC_TransmitPacket(&hUsbDeviceFS);
+  if (result != USBD_OK) {
+    CdcTxStartTick = 0U;
+  }
   /* USER CODE END 7 */
   return result;
 }
@@ -330,11 +370,87 @@ static int8_t CDC_TransmitCplt_FS(uint8_t *Buf, uint32_t *Len, uint8_t epnum)
   UNUSED(Buf);
   UNUSED(Len);
   UNUSED(epnum);
+  CdcTxStartTick = 0U;
+  USBD_CDC_HandleTypeDef *hcdc = CDC_GetHandle();
+  if (hcdc != NULL) {
+    hcdc->TxState = 0U;
+  }
   /* USER CODE END 13 */
   return result;
 }
 
 /* USER CODE BEGIN PRIVATE_FUNCTIONS_IMPLEMENTATION */
+
+static uint8_t CDC_IsReady(void)
+{
+    return (hUsbDeviceFS.dev_state == USBD_STATE_CONFIGURED &&
+            hUsbDeviceFS.pClassDataCmsit[hUsbDeviceFS.classId] != NULL) ? 1U : 0U;
+}
+
+static USBD_CDC_HandleTypeDef *CDC_GetHandle(void)
+{
+    if (!CDC_IsReady()) {
+        return NULL;
+    }
+    return (USBD_CDC_HandleTypeDef *)hUsbDeviceFS.pClassDataCmsit[hUsbDeviceFS.classId];
+}
+
+static void CDC_RecoverStuckTx(void)
+{
+    USBD_CDC_HandleTypeDef *hcdc = CDC_GetHandle();
+
+    if (hcdc == NULL || hcdc->TxState == 0U) {
+        return;
+    }
+
+    if (CdcTxStartTick == 0U) {
+        hcdc->TxState = 0U;
+        return;
+    }
+
+    HAL_PCD_IRQHandler(&hpcd_USB_OTG_FS);
+
+    if ((HAL_GetTick() - CdcTxStartTick) > CDC_TX_STUCK_TIMEOUT_MS) {
+        hcdc->TxState = 0U;
+        CdcTxStartTick = 0U;
+    }
+}
+
+static uint8_t CDC_CommandMatches(const uint8_t *buf, uint32_t len, const char *cmd)
+{
+    uint32_t i = 0U;
+
+    while (i < len &&
+           (buf[i] == ' ' || buf[i] == '\t' || buf[i] == '\r' || buf[i] == '\n')) {
+        i++;
+    }
+
+    while (*cmd != '\0') {
+        uint8_t c;
+
+        if (i >= len) {
+            return 0U;
+        }
+
+        c = buf[i++];
+        if (c >= 'a' && c <= 'z') {
+            c = (uint8_t)(c - ('a' - 'A'));
+        }
+
+        if (c != (uint8_t)*cmd++) {
+            return 0U;
+        }
+    }
+
+    if (i < len) {
+        uint8_t c = buf[i];
+        if (c != '\0' && c != ' ' && c != '\t' && c != '\r' && c != '\n') {
+            return 0U;
+        }
+    }
+
+    return 1U;
+}
 
 /**
   * @brief  CDC_Transmit_FS_Blocking
@@ -354,26 +470,41 @@ uint8_t CDC_Transmit_FS_Blocking(uint8_t *Buf, uint16_t Len, uint32_t timeout_ms
 
     /* 等待前一次传输完成（等待 TxState == 0） */
     while (1) {
-        if (hUsbDeviceFS.dev_state != USBD_STATE_CONFIGURED ||
-            hUsbDeviceFS.pClassData == NULL) {
+        if (!CDC_IsReady()) {
             return USBD_FAIL;
         }
 
-        USBD_CDC_HandleTypeDef *hcdc =
-            (USBD_CDC_HandleTypeDef *)hUsbDeviceFS.pClassData;
+        USBD_CDC_HandleTypeDef *hcdc = CDC_GetHandle();
+
+        HAL_PCD_IRQHandler(&hpcd_USB_OTG_FS);
 
         if (hcdc->TxState == 0) {
             break;
         }
 
         if (timeout_ms != 0 && (HAL_GetTick() - start) >= timeout_ms) {
-            return USBD_BUSY;
+            hcdc->TxState = 0;
+            CdcTxStartTick = 0U;
+            break;
         }
 
         if (osKernelGetState() == osKernelRunning) {
             osDelay(1);
         } else {
-            HAL_Delay(1);
+            /* 不依赖 HAL_Delay — uwTick 可能不递增，用短忙等代替 */
+            for (volatile uint32_t i = 0; i < 5000; i++) {}
+        }
+    }
+
+    /* 强制复位 TxState，防止前一次发送卡死阻塞后续所有发送 */
+    {
+        USBD_CDC_HandleTypeDef *hcdc = CDC_GetHandle();
+        if (hcdc) {
+            /* 如果 TxState 卡在 1 超过 100ms，强制清零 */
+            if (hcdc->TxState != 0 && (HAL_GetTick() - start) > 100) {
+                hcdc->TxState = 0;
+                CdcTxStartTick = 0U;
+            }
         }
     }
 
@@ -383,28 +514,33 @@ uint8_t CDC_Transmit_FS_Blocking(uint8_t *Buf, uint16_t Len, uint32_t timeout_ms
         return ret;
     }
 
-    /* 等待发送完成（等待 TxState == 0） */
+    /* 等待发送完成（等待 TxState == 0），最多等 50ms */
+    uint32_t tx_wait = HAL_GetTick();
+    uint32_t tx_timeout = (timeout_ms > 1000U) ? timeout_ms : 1000U;
     while (1) {
-        if (hUsbDeviceFS.dev_state != USBD_STATE_CONFIGURED ||
-            hUsbDeviceFS.pClassData == NULL) {
+        if (!CDC_IsReady()) {
             return USBD_FAIL;
         }
 
-        USBD_CDC_HandleTypeDef *hcdc =
-            (USBD_CDC_HandleTypeDef *)hUsbDeviceFS.pClassData;
+        USBD_CDC_HandleTypeDef *hcdc = CDC_GetHandle();
+
+        HAL_PCD_IRQHandler(&hpcd_USB_OTG_FS);
 
         if (hcdc->TxState == 0) {
             return USBD_OK;
         }
 
-        if (timeout_ms != 0 && (HAL_GetTick() - start) >= timeout_ms) {
+        if ((HAL_GetTick() - tx_wait) > tx_timeout) {
+            /* 超时：强制清零 TxState，不阻塞后续输出 */
+            hcdc->TxState = 0;
+            CdcTxStartTick = 0U;
             return USBD_BUSY;
         }
 
         if (osKernelGetState() == osKernelRunning) {
             osDelay(1);
         } else {
-            HAL_Delay(1);
+            for (volatile uint32_t i = 0; i < 5000; i++) {}
         }
     }
 }

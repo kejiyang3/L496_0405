@@ -1,0 +1,13 @@
+[12:18:35.234] ✅ 连接成功，开始接收数据
+[12:18:49.452] ⚠ 串口异常: ClearCommError failed (PermissionError(13, '设备不识别此命令。', None, 22))
+[12:18:49.452] ⚠ 连接断开，等待重连...
+[12:18:49.744] ❌ 连接失败，重试中...
+[12:18:50.394] ✅ 连接成功，开始接收数据
+[12:18:50.395] 📈 累计重连次数: 2
+[12:18:51.531] [SYS] RTOS Started, USB CDC Ready!
+[12:18:52.139] [Touch] CST816 Chip ID: 0xB5
+[12:18:52.548] [SDDBG][ERR] mount path=0:/debug_log.txt res=3
+[12:18:52.548] [ECG_V1] Sensor task started
+[12:18:52.564] [SDDBG][ERR] mount path=0:/debug_log.txt res=1
+[12:18:52.564] [SDDBG][ERR] mount path=0:/debug_log.txt res=1
+[12:18:52.564] [SENSOR] before MAX30003_Init

@@ -1,0 +1,33 @@
+{
+  "tools": {
+    "cmake": "C:\\Users\\ycs\\AppData\\Local\\stm32cube\\bundles\\cmake\\4.2.3+st.1\\bin\\cmake.exe",
+    "ninja": "C:\\Users\\ycs\\AppData\\Local\\stm32cube\\bundles\\ninja\\1.13.2+st.1\\bin\\ninja.exe",
+    "arm-none-eabi-gcc": "C:\\Users\\ycs\\AppData\\Local\\stm32cube\\bundles\\gnu-tools-for-stm32\\14.3.1+st.2\\bin\\arm-none-eabi-gcc.exe",
+    "openocd": "C:\\ST\\STM32CubeIDE_1.16.1\\STM32CubeIDE\\plugins\\com.st.stm32cube.ide.mcu.externaltools.openocd.win32_2.4.100.202501161620\\tools\\bin\\openocd.exe",
+    "python": "C:\\ProgramData\\miniconda3\\python.exe"
+  },
+  "openocd": {
+    "script_search_path": "C:\\ST\\STM32CubeIDE_1.16.1\\STM32CubeIDE\\plugins\\com.st.stm32cube.ide.mcu.debug.openocd_2.3.100.202501240831\\resources\\openocd\\st_scripts",
+    "interface": "interface/stlink-dap.cfg",
+    "target": "target/stm32l4x.cfg",
+    "artifact": "build/L496_0405.elf"
+  },
+  "serial": {
+    "port": "COM12",
+    "baud": 115200,
+    "log_dir": "logs"
+  },
+  "project_profile": {
+    "name": "L496_0405",
+    "build_system": "cmake",
+    "generator": "Ninja",
+    "mcu": "STM32L496",
+    "evidence_priority": [
+      "SD session_XXX.txt",
+      "SD log_XXX.txt",
+      "SD file sizes",
+      "OpenOCD memory counters",
+      "USB CDC logs"
+    ]
+  }
+}

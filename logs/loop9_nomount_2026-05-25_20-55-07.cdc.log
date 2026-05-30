@@ -1,0 +1,12 @@
+[20:55:08.304] ✅ 连接成功，开始接收数据
+[20:55:09.046] ⚠ 串口异常: ClearCommError failed (PermissionError(13, '设备不识别此命令。', None, 22))
+[20:55:09.046] ⚠ 连接断开，等待重连...
+[20:55:09.333] ❌ 连接失败，重试中...
+[20:55:12.702] ❌ 连接失败，重试中...
+[20:55:13.838] ✅ 连接成功，开始接收数据
+[20:55:13.838] 📈 累计重连次数: 2
+[20:55:15.945] [SDDBG][ERR] open path=0:/debug_log.txt res=12
+[20:55:15.945] [ECG_V1] Sensor task started
+[20:55:15.945] [SDDBG][ERR] open path=0:/debug_log.txt res=12
+[20:55:15.945] [SDDBG][ERR] open path=0:/debug_log.txt res=12
+[20:55:15.945] [SENSOR] before MAX30003_Init

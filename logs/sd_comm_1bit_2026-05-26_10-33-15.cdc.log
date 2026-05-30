@@ -1,0 +1,50 @@
+[10:35:01.025] ✅ 连接成功，开始接收数据
+[10:35:37.371] ⚠ 串口异常: ClearCommError failed (PermissionError(13, '设备不识别此命令。', None, 22))
+[10:35:37.371] ⚠ 连接断开，等待重连...
+[10:35:37.679] ❌ 连接失败，重试中...
+[10:35:38.332] ✅ 连接成功，开始接收数据
+[10:35:38.332] 📈 累计重连次数: 2
+[10:35:39.449] [SYS] RTOS Started, USB CDC Ready!
+[10:35:40.447] [BSP_SD] HAL_SD_Init ret=0 err=0x00000000
+[10:35:40.462] [BSP_SD] Config1B ret=0 err=0x00000000
+[10:35:40.478] [ECG_V1] Sensor task started
+[10:35:40.525] [SENSOR] before MAX30003_Init
+[10:35:40.666] [SENSOR] after MAX30003_Init
+[10:35:40.681] [BSP_SD][ERR] ReadBlocks addr=0 n=1 err=0x00000001
+[10:35:40.681] [SDDBG][ERR] open path=0:/debug_log.txt res=1
+[10:35:40.681] [SENSOR] after MAX30003_INIT_DONE log
+[10:35:40.681] [BSP_SD][ERR] ReadBlocks addr=0 n=1 err=0x00000001
+[10:35:40.681] [SDDBG][ERR] newfile mount path=0:/log_001.txt res=1
+[10:35:40.696] [MS_SD] mount begin file=0:/ecg_001.csv
+[10:35:40.696] [BSP_SD][ERR] ReadBlocks addr=0 n=1 err=0x00000001
+[10:35:40.696] [MS_SD][ERR] mount res=1
+[10:35:41.227] [SDDBG][ERR] mutex timeout path=0:/log_001.txt
+[10:35:43.771] [BSP_SD][ERR] ReadBlocks addr=0 n=1 err=0x00000001
+[10:35:43.771] [SDDBG][ERR] open path=0:/log_001.txt res=1
+[10:35:43.771] [SD_OPEN_FAIL]
+[10:47:22.138] ⚠ 串口异常: ClearCommError failed (PermissionError(13, '设备不识别此命令。', None, 22))
+[10:47:22.138] 📊 本次连接统计: 18行数据
+[10:47:22.138] ⚠ 连接断开，等待重连...
+[10:47:22.396] ❌ 连接失败，重试中...
+[10:47:25.702] ❌ 连接失败，重试中...
+[10:47:28.979] ❌ 连接失败，重试中...
+[10:47:32.241] ❌ 连接失败，重试中...
+[10:47:33.835] ✅ 连接成功，开始接收数据
+[10:47:33.835] 📈 累计重连次数: 3
+[10:47:35.312] [SYS] RTOS Started, USB CDC Ready!
+[10:47:36.316] [BSP_SD] HAL_SD_Init ret=0 err=0x00000000
+[10:47:36.316] [BSP_SD] Config1B ret=0 err=0x00000000
+[10:47:36.426] [ECG_V1] Sensor task started
+[10:47:36.553] [SENSOR] before MAX30003_Init
+[10:47:36.694] AX30003_Init
+[10:47:36.694] [BSP_SD][ERR] ReadBlocks addr=0 n=1 err=0x00000001
+[10:47:36.694] [SDDBG][ERR] open path=0:/debug_log.txt res=1
+[10:47:36.694] [SENSOR] after MAX30003_INIT_DONE log
+[10:47:36.694] [BSP_SD][ERR] ReadBlocks addr=0 n=1 err=0x00000001
+[10:47:36.742] [SDDBG][ERR] newfile mount path=0:/log_001.txt res=1
+[10:47:36.742] [MS_SD] mount begin file=0:/ecg_001.csv
+[10:47:36.742] [BSP_SD][ERR] ReadBlocks addr=0 n=1 err=0x00000001
+[10:47:37.260] [MS_SD][ERR] mount res=1
+[10:47:39.800] [SDDBG][ERR] mutex timeout path=0:/log_001.txt
+[10:47:39.800] [BSP_SD][ERR] ReadBlocks addr=0 n=1 err=0x00000001
+[10:47:39.800] [SDDBG][ERR] open path=0:/log_001.txt res=1

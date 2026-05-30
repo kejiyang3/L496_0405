@@ -1,0 +1,24 @@
+[15:14:25.256] ✅ 连接成功，开始接收数据
+[15:14:28.072] ⚠ 串口异常: ClearCommError failed (PermissionError(13, '设备不识别此命令。', None, 22))
+[15:14:28.073] ⚠ 连接断开，等待重连...
+[15:14:28.359] ❌ 连接失败，重试中...
+[15:14:29.027] ✅ 连接成功，开始接收数据
+[15:14:29.027] 📈 累计重连次数: 2
+[15:14:31.172] [SYS] RTOS Started, USB CDC Ready!
+[15:14:31.172] [ECG_V1] Sensor task started
+[15:14:31.436] [SENSOR_INIT]
+[15:14:31.436] [MAX30102] I2C CALL FAIL, DEVICE NOT FOUND
+[15:14:31.437] [ICM20948] INIT OK (WHO_AM_I + 10x probe passed)
+[15:14:31.452] [/SENSOR_INIT]
+[15:14:31.452] [SENSOR] before MAX30003_Init
+[15:14:31.453] [MAX30003] Initializing...
+[15:14:31.453] [MAX30003_INIT] step=cs
+[15:14:31.483] [MAX30003_INIT] step=sw_reset
+[15:14:31.484] [MAX30003_INIT] step=status1
+[15:14:31.484] [MAX30003_INIT] step=status2
+[15:14:31.485] [MAX30003_INIT] step=info1
+[15:14:31.485] step=info2
+[15:14:31.486] [MAX30003_INIT] step=info3
+[15:14:31.486] [MAX3000
+[15:14:31.486] [MAX30003_INIT] step=cnfg_ecg
+[15:14:31.499] NFG_ECG = 0x025000

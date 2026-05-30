@@ -177,30 +177,13 @@ uint8_t CST816_Get_XY(void)
  ******************************************************************************/
 uint8_t CST816_GetAction(uint16_t *X, uint16_t *Y, uint8_t *Gesture)
 {
-    static uint8_t s_i2c_err_count = 0;
     uint8_t data[6];
     HAL_StatusTypeDef res = HAL_I2C_Mem_Read(&hi2c2, CST816_I2C_ADDR, CST816_REG_GESTURE_ID,
-                                              I2C_MEMADD_SIZE_8BIT, data, 6, 10);
+                                              I2C_MEMADD_SIZE_8BIT, data, 6, 2);
 
     if (res != HAL_OK) {
-        s_i2c_err_count++;
-        /* 连续 3 次 I2C 失败 → 复位 I2C 外设 + 重新初始化 CST816 */
-        if (s_i2c_err_count >= 3) {
-            s_i2c_err_count = 0;
-            HAL_I2C_DeInit(&hi2c2);
-            HAL_Delay(10);
-            MX_I2C2_Init();
-            HAL_Delay(20);
-            CST816_ResetPin();
-            CST816_Write_Reg(CST816_REG_DIS_AUTO_SLEEP, 0x01);
-            CST816_Write_Reg(CST816_REG_IRQ_CTRL, 0x60);
-            uint8_t dummy[6];
-            CST816_Read_Reg(CST816_REG_GESTURE_ID, dummy, 6);
-        }
         return 0;
     }
-
-    s_i2c_err_count = 0;  /* 成功，清零错误计数 */
 
     *Gesture = data[0];
     uint8_t finger = data[1] & 0x0F;
@@ -214,4 +197,3 @@ uint8_t CST816_GetAction(uint16_t *X, uint16_t *Y, uint8_t *Gesture)
 
     return finger;
 }
-

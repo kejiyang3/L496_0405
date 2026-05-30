@@ -1,68 +1,155 @@
 /**
  * @file app_lvgl.c
- * @brief LVGL V1 ECG Logger UI — 两页: Main / Diagnostic
+ * @brief Minimal acceptance UI for manual recording control.
  */
 #include "app_lvgl.h"
+#include "app_lvgl_acceptance_ui.h"
 #include "lvgl.h"
 #include "lv_port_disp.h"
 #include "lv_port_indev.h"
-#include "main.h"
 #include "stm32l4xx_hal.h"
 #include "DEV_Config.h"
 #include "LCD_1in69.h"
-#include "../../User/touch.h"
-#include "../../User/Config/usb_printf.h"
 #include "ecg_record_control.h"
-#include "max3003.h"
 
-/* 触摸手势 — 由 lv_port_indev.c 设置 */
-extern volatile uint8_t g_touch_gesture;
+#define UI_COLOR_BG        0x07111F
+#define UI_COLOR_PANEL     0x14263D
+#define UI_COLOR_TEXT      0xF4F7FB
+#define UI_COLOR_MUTED     0xA8B4C4
+#define UI_COLOR_GREEN     0x37D67A
+#define UI_COLOR_BLUE      0x3FA7FF
+#define UI_COLOR_YELLOW    0xFFD166
+#define UI_COLOR_RED       0xFF5A5F
+#define UI_COLOR_LINE      0x294967
+#define UI_BACKLIGHT_ON    1000U
+#define UI_BACKLIGHT_OFF   0U
+#define UI_BACKLIGHT_IDLE_MS 30000U
 
-/* ----- 页面控制 ----- */
-static uint8_t s_page = 0;  /* 0=Main, 1=Diag */
+static lv_obj_t *ui_title;
+static lv_obj_t *ui_state;
+static lv_obj_t *ui_button;
+static lv_obj_t *ui_button_label;
+static lv_obj_t *ui_file;
+static lv_obj_t *ui_hint;
+static lv_obj_t *ui_live;
 
-/* ----- Page 1: Main 对象 ----- */
-static lv_obj_t *ui_label_title;
-static lv_obj_t *ui_label_lead;
-static lv_obj_t *ui_label_state;
-static lv_obj_t *ui_label_rate;
-static lv_obj_t *ui_label_file;
-static lv_obj_t *ui_label_samples;
-static lv_obj_t *ui_label_drop;
-static lv_obj_t *ui_btn_start;
-static lv_obj_t *ui_btn_start_label;
-static lv_obj_t *ui_btn_info;
-static lv_obj_t *ui_btn_info_label;
+static lv_style_t style_screen;
+static lv_style_t style_title;
+static lv_style_t style_state;
+static lv_style_t style_file;
+static lv_style_t style_hint;
+static lv_style_t style_button_start;
+static lv_style_t style_button_stop;
+static lv_style_t style_button_disabled;
 
-/* ----- Page 2: Diagnostic 对象 ----- */
-static lv_obj_t *ui_label_title2;
-static lv_obj_t *ui_label_status_reg;
-static lv_obj_t *ui_label_pll_seen;
-static lv_obj_t *ui_label_pll_edge;
-static lv_obj_t *ui_label_eovf;
-static lv_obj_t *ui_label_written;
-static lv_obj_t *ui_label_ppg_irq;
-static lv_obj_t *ui_label_ppg_int;
-static lv_obj_t *ui_label_ppg_ie1_is1;
-static lv_obj_t *ui_label_ppg_fifo_wr_rd;
-static lv_obj_t *ui_label_ppg_fifo_ov;
-static lv_obj_t *ui_label_ppg_mode;
+static ECG_RecordState_t s_state_last = (ECG_RecordState_t)0xff;
+static uint8_t s_button_mode_last = 0xffU;
+static uint32_t s_seq_last = 0xffffffffUL;
+static uint32_t s_live_last = 0xffffffffUL;
+static uint32_t s_last_touch_tick = 0;
+static uint8_t s_backlight_on = 1U;
 
-/* 辅助: 显示/隐藏一组对象 */
-static void show_group(lv_obj_t **objs, int count, int visible)
+static uint32_t display_seq(void)
 {
-    for (int i = 0; i < count; i++) {
-        if (visible)
-            lv_obj_clear_flag(objs[i], LV_OBJ_FLAG_HIDDEN);
-        else
-            lv_obj_add_flag(objs[i], LV_OBJ_FLAG_HIDDEN);
+    if (g_ecg_rec.state == ECG_REC_IDLE ||
+        g_ecg_rec.state == ECG_REC_RECORDING ||
+        g_ecg_rec.state == ECG_REC_STOPPING ||
+        g_ecg_rec.file_seq == 0U) {
+        return g_ecg_rec.file_seq;
+    }
+
+    return g_ecg_rec.file_seq - 1U;
+}
+
+static uint32_t next_record_seq(void)
+{
+    if (g_ecg_rec.state == ECG_REC_IDLE ||
+        g_ecg_rec.state == ECG_REC_STOPPED ||
+        g_ecg_rec.state == ECG_REC_ERROR) {
+        return g_ecg_rec.file_seq;
+    }
+
+    return display_seq();
+}
+
+static const char *state_text(void)
+{
+    switch (g_ecg_rec.state) {
+    case ECG_REC_IDLE:      return APP_LVGL_READY_TEXT;
+    case ECG_REC_RECORDING: return "RECORDING";
+    case ECG_REC_STOPPING:  return APP_LVGL_SAVING_TEXT;
+    case ECG_REC_STOPPED:   return "SAVED";
+    case ECG_REC_ERROR:     return "ERROR";
+    default:                return "BOOT";
     }
 }
 
-/* ----- Start/Stop button callback ----- */
-static void btn_start_cb(lv_event_t *e)
+static lv_color_t state_color(void)
 {
-    (void)e;
+    switch (g_ecg_rec.state) {
+    case ECG_REC_RECORDING: return lv_color_hex(UI_COLOR_GREEN);
+    case ECG_REC_STOPPING:  return lv_color_hex(UI_COLOR_YELLOW);
+    case ECG_REC_STOPPED:   return lv_color_hex(UI_COLOR_BLUE);
+    case ECG_REC_ERROR:     return lv_color_hex(UI_COLOR_RED);
+    default:                return lv_color_hex(UI_COLOR_MUTED);
+    }
+}
+
+static void reset_ui_cache(void)
+{
+    s_state_last = (ECG_RecordState_t)0xff;
+    s_button_mode_last = 0xffU;
+    s_seq_last = 0xffffffffUL;
+    s_live_last = 0xffffffffUL;
+}
+
+static void set_backlight_state(uint8_t on)
+{
+    if (on == s_backlight_on) {
+        return;
+    }
+
+    s_backlight_on = on;
+    LCD_1IN69_SetBackLight(on ? UI_BACKLIGHT_ON : UI_BACKLIGHT_OFF);
+    if (on) {
+        reset_ui_cache();
+    }
+}
+
+uint8_t APP_LVGL_NotifyTouchActivity(void)
+{
+    uint8_t wake_only = (s_backlight_on == 0U) ? 1U : 0U;
+
+    s_last_touch_tick = HAL_GetTick();
+    set_backlight_state(1U);
+
+    return wake_only;
+}
+
+static lv_obj_t *make_label(lv_obj_t *parent, const char *text,
+                            lv_style_t *style, lv_align_t align,
+                            lv_coord_t x, lv_coord_t y)
+{
+    lv_obj_t *label = lv_label_create(parent);
+    lv_label_set_text(label, text);
+    lv_obj_add_style(label, style, 0);
+    lv_obj_align(label, align, x, y);
+    return label;
+}
+
+static void record_button_event_cb(lv_event_t *event)
+{
+    lv_event_code_t code = lv_event_get_code(event);
+
+    if (g_ecg_rec.state == ECG_REC_RECORDING && code == LV_EVENT_PRESSED) {
+        ECG_RequestStop();
+        return;
+    }
+
+    if (code != LV_EVENT_CLICKED) {
+        return;
+    }
+
     if (g_ecg_rec.state == ECG_REC_IDLE ||
         g_ecg_rec.state == ECG_REC_STOPPED ||
         g_ecg_rec.state == ECG_REC_ERROR) {
@@ -72,187 +159,153 @@ static void btn_start_cb(lv_event_t *e)
     }
 }
 
-/* ----- Save Info button callback ----- */
-static void btn_save_info_cb(lv_event_t *e)
+static void set_button_mode(uint8_t mode)
 {
-    (void)e;
-    ECG_RequestSaveInfo();
-}
+    if (mode == s_button_mode_last) {
+        return;
+    }
 
-/* ----- File number +/- ----- */
-static void btn_file_dec_cb(lv_event_t *e)
-{
-    (void)e;
-    if (g_ecg_rec.file_seq > 1) {
-        g_ecg_rec.file_seq--;
-        ECG_UpdateFileName();
+    s_button_mode_last = mode;
+    lv_obj_clear_state(ui_button, LV_STATE_DISABLED);
+    lv_obj_remove_style(ui_button, &style_button_start, 0);
+    lv_obj_remove_style(ui_button, &style_button_stop, 0);
+    lv_obj_remove_style(ui_button, &style_button_disabled, 0);
+
+    if (mode == 0U) {
+        lv_label_set_text(ui_button_label, APP_LVGL_STOP_TEXT);
+        lv_obj_add_style(ui_button, &style_button_stop, 0);
+    } else if (mode == 1U) {
+        lv_label_set_text(ui_button_label, APP_LVGL_START_TEXT);
+        lv_obj_add_style(ui_button, &style_button_start, 0);
+    } else {
+        lv_label_set_text(ui_button_label, APP_LVGL_SAVING_TEXT);
+        lv_obj_add_style(ui_button, &style_button_disabled, 0);
+        lv_obj_add_state(ui_button, LV_STATE_DISABLED);
     }
 }
 
-static void btn_file_inc_cb(lv_event_t *e)
-{
-    (void)e;
-    if (g_ecg_rec.file_seq < 999) {
-        g_ecg_rec.file_seq++;
-        ECG_UpdateFileName();
-    }
-}
-
-/* ----- UI update timer (500ms) ----- */
 static void ui_update_cb(lv_timer_t *timer)
 {
     (void)timer;
-    static uint32_t last_up = 0;
-    static uint32_t last_tick = 0;
-    static uint32_t last_fifo = 0;
-    static uint32_t rate_hz = 0;
+
     uint32_t now = HAL_GetTick();
 
-    if (now - last_up < 500) return;
-    last_up = now;
-
-    /* ---- 左右滑动换页 ---- */
-    if (g_touch_gesture) {
-        s_page = !s_page;
-        g_touch_gesture = 0;
+    if (s_backlight_on != 0U &&
+        s_last_touch_tick != 0U &&
+        (now - s_last_touch_tick) >= UI_BACKLIGHT_IDLE_MS) {
+        set_backlight_state(0U);
     }
 
-    /* ---- 页面可见性 ---- */
-    /* Page 1 (Main) — 只隐藏顶层容器，子 label 自动跟随 */
-    lv_obj_t *page1[] = {
-        ui_label_title, ui_label_lead, ui_label_state, ui_label_rate, ui_label_file,
-        ui_label_samples, ui_label_drop,
-        ui_btn_start, ui_btn_info
-    };
-    /* Page 2 (Diag) */
-    lv_obj_t *page2[] = {
-        ui_label_title2, ui_label_status_reg,
-        ui_label_pll_seen, ui_label_pll_edge,
-        ui_label_eovf, ui_label_written,
-        ui_label_ppg_irq, ui_label_ppg_int,
-        ui_label_ppg_ie1_is1, ui_label_ppg_fifo_wr_rd,
-        ui_label_ppg_fifo_ov, ui_label_ppg_mode
-    };
-    show_group(page1, sizeof(page1)/sizeof(page1[0]), s_page == 0);
-    show_group(page2, sizeof(page2)/sizeof(page2[0]), s_page == 1);
+    if (s_backlight_on == 0U) {
+        return;
+    }
 
-    /* ---- Page 1 更新 ---- */
-    if (s_page == 0) {
-        const char *s = "IDLE";
-        switch (g_ecg_rec.state) {
-            case ECG_REC_IDLE:      s = "IDLE";      break;
-            case ECG_REC_RECORDING: s = "RECORDING";  break;
-            case ECG_REC_STOPPING:  s = "STOPPING";   break;
-            case ECG_REC_STOPPED:   s = "STOPPED";    break;
-            case ECG_REC_ERROR:     s = "ERROR";      break;
-        }
-        lv_label_set_text_fmt(ui_label_state, "State: %s", s);
+    uint32_t seq = display_seq();
+    uint32_t file_seq = (g_ecg_rec.state == ECG_REC_RECORDING ||
+                         g_ecg_rec.state == ECG_REC_STOPPING) ? seq : next_record_seq();
 
-        /* 电极状态 — 纯英文文本 */
-        {
-            MAX30003_LeadStatus_t lead;
-            MAX30003_GetLeadStatus(&lead);
+    uint8_t state_changed = (g_ecg_rec.state != s_state_last) ? 1U : 0U;
+    if (g_ecg_rec.state != s_state_last) {
+        s_state_last = g_ecg_rec.state;
+        lv_label_set_text(ui_state, state_text());
+        lv_obj_set_style_text_color(ui_state, state_color(), 0);
+    }
 
-            if (lead.last_update_ms == 0) {
-                lv_label_set_text(ui_label_lead, "LEAD: UNKNOWN");
-            } else if (lead.state == MAX30003_LEAD_ON) {
-                lv_label_set_text(ui_label_lead, "LEAD: ON");
-            } else {
-                if (lead.p_off && lead.n_off) {
-                    lv_label_set_text(ui_label_lead, "LEAD: P_N_OFF");
-                } else if (lead.p_off) {
-                    lv_label_set_text(ui_label_lead, "LEAD: P_OFF");
-                } else if (lead.n_off) {
-                    lv_label_set_text(ui_label_lead, "LEAD: N_OFF");
-                } else {
-                    lv_label_set_text(ui_label_lead, "LEAD: OFF");
-                }
-            }
-        }
+    if (file_seq != s_seq_last) {
+        s_seq_last = file_seq;
+        lv_label_set_text_fmt(ui_file,
+                              "SD %03lu: CSV ECG/PPG/IMU + WAV MIC",
+                              (unsigned long)file_seq);
+    }
 
-        /* 采样率估算（基于 fifo_sample_count，512Hz 应稳定） */
-        if (now - last_tick >= 5000) {
-            uint32_t df = g_ecg_rec.fifo_sample_count - last_fifo;
-            if (now > last_tick)
-                rate_hz = (df * 1000UL) / (now - last_tick);
-            last_fifo = g_ecg_rec.fifo_sample_count;
-            last_tick = now;
-        }
-        lv_label_set_text_fmt(ui_label_rate, "Rate: %lu Hz", rate_hz);
+    uint8_t button_mode;
+    if (g_ecg_rec.state == ECG_REC_RECORDING) {
+        button_mode = 0U;
+    } else if (g_ecg_rec.state == ECG_REC_STOPPING) {
+        button_mode = 2U;
+    } else {
+        button_mode = 1U;
+    }
+    set_button_mode(button_mode);
 
-        lv_label_set_text_fmt(ui_label_file, "File: ecg_%03lu.csv  ", g_ecg_rec.file_seq);
-        lv_label_set_text_fmt(ui_label_samples, "Samples: %lu", g_ecg_rec.ecg_sample_count);
-        lv_label_set_text_fmt(ui_label_drop, "Drop: %lu", g_ecg_rec.ecg_drop_count);
-
-        /* Start/Stop 按钮 */
-        if (g_ecg_rec.state == ECG_REC_RECORDING) {
-            lv_label_set_text(ui_btn_start_label, "Stop");
-            lv_obj_set_style_bg_color(ui_btn_start, lv_color_hex(0xCC3333), 0);
+    if (state_changed) {
+        if (g_ecg_rec.state == ECG_REC_STOPPING) {
+            lv_label_set_text(ui_hint, "Writing SD summary...");
+        } else if (g_ecg_rec.state == ECG_REC_STOPPED) {
+            lv_label_set_text(ui_hint, "Saved. Remove SD after idle.");
         } else {
-            lv_label_set_text(ui_btn_start_label, "Start");
-            lv_obj_set_style_bg_color(ui_btn_start, lv_color_hex(0x33AA33), 0);
-        }
-
-        if (g_ecg_rec.state == ECG_REC_RECORDING) {
-            lv_obj_add_state(ui_btn_info, LV_STATE_DISABLED);
-        } else {
-            lv_obj_clear_state(ui_btn_info, LV_STATE_DISABLED);
+            lv_label_set_text(ui_hint, "Tap START / STOP for acceptance.");
         }
     }
 
-    /* ---- Page 2 更新 ---- */
-    if (s_page == 1) {
-        {
-            MAX30003_LeadStatus_t lead;
-            MAX30003_GetLeadStatus(&lead);
-            lv_label_set_text_fmt(ui_label_status_reg, "STATUS: 0x%06lX", lead.raw_status);
-            lv_label_set_text_fmt(ui_label_pll_seen,   "Lead: P_OFF=%d N_OFF=%d DCL=%d",
-                                  lead.p_off, lead.n_off, lead.dc_loff);
-        }
-        lv_label_set_text_fmt(ui_label_pll_edge,   "PLL edge: %lu",  g_ecg_rec.pll_edge_count);
-        lv_label_set_text_fmt(ui_label_eovf,       "EOVF: %lu",      g_ecg_rec.fifo_eovf_count);
-        lv_label_set_text_fmt(ui_label_written,    "Written: %lu",   g_ecg_rec.ecg_written_count);
-
-        /* PPG 中断/FIFO 诊断 — 约 1 秒刷新 (数据由 Sensor 任务填充) */
-        {
-            extern volatile uint32_t ppg_irq_count;
-            extern volatile uint8_t g_ppg_ie1, g_ppg_is1;
-            extern volatile uint8_t g_ppg_fifo_wr, g_ppg_fifo_rd;
-            extern volatile uint8_t g_ppg_fifo_ov, g_ppg_mode;
-            GPIO_PinState ppg_pin =
-                HAL_GPIO_ReadPin(PPG_INT_GPIO_Port, PPG_INT_Pin);
-
-            lv_label_set_text_fmt(ui_label_ppg_irq,
-                "PPG IRQ: %lu", (unsigned long)ppg_irq_count);
-            lv_label_set_text_fmt(ui_label_ppg_int,
-                "PPG INT: %s", (ppg_pin == GPIO_PIN_SET) ? "HIGH" : "LOW");
-            lv_label_set_text_fmt(ui_label_ppg_ie1_is1,
-                "IE1/IS1: %02X/%02X", g_ppg_ie1, g_ppg_is1);
-            lv_label_set_text_fmt(ui_label_ppg_fifo_wr_rd,
-                "FIFO W/R: %02X/%02X", g_ppg_fifo_wr, g_ppg_fifo_rd);
-            lv_label_set_text_fmt(ui_label_ppg_fifo_ov,
-                "FIFO OV: %02X", g_ppg_fifo_ov);
-            lv_label_set_text_fmt(ui_label_ppg_mode,
-                "MODE: %02X", g_ppg_mode);
-        }
+    uint32_t live = now / 1000UL;
+    if (live != s_live_last) {
+        s_live_last = live;
+        lv_label_set_text_fmt(ui_live, "LIVE %04lu", (unsigned long)(live % 10000UL));
     }
 }
 
-/* ----- Public ----- */
+static void init_styles(void)
+{
+    lv_style_init(&style_screen);
+    lv_style_set_bg_color(&style_screen, lv_color_hex(UI_COLOR_BG));
+    lv_style_set_bg_opa(&style_screen, LV_OPA_COVER);
+
+    lv_style_init(&style_title);
+    lv_style_set_text_color(&style_title, lv_color_hex(UI_COLOR_TEXT));
+    lv_style_set_text_font(&style_title, &lv_font_montserrat_14);
+
+    lv_style_init(&style_state);
+    lv_style_set_text_color(&style_state, lv_color_hex(UI_COLOR_MUTED));
+    lv_style_set_text_font(&style_state, &lv_font_montserrat_14);
+
+    lv_style_init(&style_file);
+    lv_style_set_text_color(&style_file, lv_color_hex(UI_COLOR_TEXT));
+    lv_style_set_text_font(&style_file, &lv_font_montserrat_14);
+
+    lv_style_init(&style_hint);
+    lv_style_set_text_color(&style_hint, lv_color_hex(UI_COLOR_MUTED));
+    lv_style_set_text_font(&style_hint, &lv_font_montserrat_14);
+
+    lv_style_init(&style_button_start);
+    lv_style_set_bg_color(&style_button_start, lv_color_hex(UI_COLOR_GREEN));
+    lv_style_set_bg_opa(&style_button_start, LV_OPA_COVER);
+    lv_style_set_border_width(&style_button_start, 2);
+    lv_style_set_border_color(&style_button_start, lv_color_hex(UI_COLOR_LINE));
+    lv_style_set_radius(&style_button_start, 8);
+    lv_style_set_text_color(&style_button_start, lv_color_hex(UI_COLOR_BG));
+    lv_style_set_text_font(&style_button_start, &lv_font_montserrat_14);
+
+    lv_style_init(&style_button_stop);
+    lv_style_set_bg_color(&style_button_stop, lv_color_hex(UI_COLOR_RED));
+    lv_style_set_bg_opa(&style_button_stop, LV_OPA_COVER);
+    lv_style_set_border_width(&style_button_stop, 2);
+    lv_style_set_border_color(&style_button_stop, lv_color_hex(UI_COLOR_LINE));
+    lv_style_set_radius(&style_button_stop, 8);
+    lv_style_set_text_color(&style_button_stop, lv_color_hex(UI_COLOR_TEXT));
+    lv_style_set_text_font(&style_button_stop, &lv_font_montserrat_14);
+
+    lv_style_init(&style_button_disabled);
+    lv_style_set_bg_color(&style_button_disabled, lv_color_hex(UI_COLOR_PANEL));
+    lv_style_set_bg_opa(&style_button_disabled, LV_OPA_COVER);
+    lv_style_set_border_width(&style_button_disabled, 2);
+    lv_style_set_border_color(&style_button_disabled, lv_color_hex(UI_COLOR_LINE));
+    lv_style_set_radius(&style_button_disabled, 8);
+    lv_style_set_text_color(&style_button_disabled, lv_color_hex(UI_COLOR_MUTED));
+    lv_style_set_text_font(&style_button_disabled, &lv_font_montserrat_14);
+}
 
 void APP_LVGL_Init(void)
 {
     DEV_Module_Init();
-    LCD_1IN69_SetBackLight(1000);
+    s_backlight_on = 1U;
+    s_last_touch_tick = HAL_GetTick();
+    LCD_1IN69_SetBackLight(UI_BACKLIGHT_ON);
     LCD_1IN69_Init(VERTICAL);
+
     lv_init();
     lv_port_disp_init();
     lv_port_indev_init();
-
-    uint8_t chip_id = 0;
-    if (CST816_Read_Reg(CST816_REG_CHIP_ID, &chip_id, 1)) {
-        usb_printf("[Touch] CST816 Chip ID: 0x%02X\r\n", chip_id);
-    }
 
     lv_obj_clean(lv_scr_act());
     App_LVGL_TestUI();
@@ -260,186 +313,51 @@ void APP_LVGL_Init(void)
 
 void App_LVGL_TestUI(void)
 {
-    lv_obj_set_style_bg_color(lv_scr_act(), lv_color_hex(0x1A1A2E), 0);
+    init_styles();
 
-    /* ==================== Page 1: Main ==================== */
+    lv_obj_t *scr = lv_scr_act();
+    lv_obj_clear_flag(scr, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_style(scr, &style_screen, 0);
 
-    /* Title */
-    ui_label_title = lv_label_create(lv_scr_act());
-    lv_label_set_text(ui_label_title, "ECG DATA");
-    lv_obj_set_style_text_color(ui_label_title, lv_color_hex(0xFFFFFF), 0);
-    lv_obj_set_style_text_font(ui_label_title, &lv_font_montserrat_14, 0);
-    lv_obj_align(ui_label_title, LV_ALIGN_TOP_MID, 0, 10);
+    ui_title = make_label(scr, APP_LVGL_TITLE_TEXT, &style_title,
+                          LV_ALIGN_TOP_MID, 0, 14);
 
-    /* Lead Status */
-    ui_label_lead = lv_label_create(lv_scr_act());
-    lv_label_set_text(ui_label_lead, "LEAD: UNKNOWN");
-    lv_obj_set_style_text_color(ui_label_lead, lv_color_hex(0xFFFFFF), 0);
-    lv_obj_align(ui_label_lead, LV_ALIGN_TOP_LEFT, 10, 28);
+    ui_state = make_label(scr, "BOOT", &style_state,
+                          LV_ALIGN_TOP_MID, 0, 46);
 
-    /* State */
-    ui_label_state = lv_label_create(lv_scr_act());
-    lv_label_set_text(ui_label_state, "State: IDLE");
-    lv_obj_set_style_text_color(ui_label_state, lv_color_hex(0xAAAAAA), 0);
-    lv_obj_align(ui_label_state, LV_ALIGN_TOP_LEFT, 10, 44);
+    ui_button = lv_btn_create(scr);
+    lv_obj_set_size(ui_button, 188, 92);
+    lv_obj_align(ui_button, LV_ALIGN_CENTER, 0, -8);
+    lv_obj_add_style(ui_button, &style_button_start, 0);
+    lv_obj_add_event_cb(ui_button, record_button_event_cb, LV_EVENT_ALL, NULL);
+    ui_button_label = lv_label_create(ui_button);
+    lv_label_set_text(ui_button_label, APP_LVGL_START_TEXT);
+    lv_obj_center(ui_button_label);
 
-    /* Rate */
-    ui_label_rate = lv_label_create(lv_scr_act());
-    lv_label_set_text(ui_label_rate, "Rate: 0 Hz");
-    lv_obj_set_style_text_color(ui_label_rate, lv_color_hex(0x88CC88), 0);
-    lv_obj_align(ui_label_rate, LV_ALIGN_TOP_LEFT, 10, 62);
+    ui_file = make_label(scr, "SD 001: CSV ECG/PPG/IMU + WAV MIC",
+                         &style_file, LV_ALIGN_TOP_MID, 0, 196);
 
-    /* File */
-    ui_label_file = lv_label_create(lv_scr_act());
-    lv_label_set_text(ui_label_file, "File: ecg_001.csv");
-    lv_obj_set_style_text_color(ui_label_file, lv_color_hex(0xFFFFFF), 0);
-    lv_obj_align(ui_label_file, LV_ALIGN_TOP_LEFT, 10, 78);
+    ui_hint = make_label(scr, "Tap START / STOP for acceptance.",
+                         &style_hint, LV_ALIGN_TOP_MID, 0, 222);
 
-    /* File +/- buttons */
-    lv_obj_t *ui_btn;
-    ui_btn = lv_btn_create(lv_scr_act());
-    lv_obj_set_size(ui_btn, 36, 28);
-    lv_obj_align(ui_btn, LV_ALIGN_TOP_LEFT, 10, 94);
-    lv_obj_set_style_bg_color(ui_btn, lv_color_hex(0x555555), 0);
-    lv_obj_set_style_radius(ui_btn, 8, 0);
-    lv_obj_t *ld = lv_label_create(ui_btn);
-    lv_label_set_text(ld, "-");
-    lv_obj_center(ld);
-    lv_obj_set_style_text_color(ld, lv_color_hex(0xFFFFFF), 0);
-    lv_obj_add_event_cb(ui_btn, btn_file_dec_cb, LV_EVENT_CLICKED, NULL);
+    ui_live = make_label(scr, "LIVE 0000", &style_hint,
+                         LV_ALIGN_BOTTOM_MID, 0, -14);
 
-    ui_btn = lv_btn_create(lv_scr_act());
-    lv_obj_set_size(ui_btn, 36, 28);
-    lv_obj_align(ui_btn, LV_ALIGN_TOP_LEFT, 60, 94);
-    lv_obj_set_style_bg_color(ui_btn, lv_color_hex(0x555555), 0);
-    lv_obj_set_style_radius(ui_btn, 8, 0);
-    lv_obj_t *li = lv_label_create(ui_btn);
-    lv_label_set_text(li, "+");
-    lv_obj_center(li);
-    lv_obj_set_style_text_color(li, lv_color_hex(0xFFFFFF), 0);
-    lv_obj_add_event_cb(ui_btn, btn_file_inc_cb, LV_EVENT_CLICKED, NULL);
-
-    /* Samples */
-    ui_label_samples = lv_label_create(lv_scr_act());
-    lv_label_set_text(ui_label_samples, "Samples: 0");
-    lv_obj_set_style_text_color(ui_label_samples, lv_color_hex(0x88CC88), 0);
-    lv_obj_align(ui_label_samples, LV_ALIGN_TOP_LEFT, 10, 128);
-
-    /* Drop */
-    ui_label_drop = lv_label_create(lv_scr_act());
-    lv_label_set_text(ui_label_drop, "Drop: 0");
-    lv_obj_set_style_text_color(ui_label_drop, lv_color_hex(0xCC8888), 0);
-    lv_obj_align(ui_label_drop, LV_ALIGN_TOP_LEFT, 10, 142);
-
-    /* Start/Stop */
-    ui_btn_start = lv_btn_create(lv_scr_act());
-    lv_obj_set_size(ui_btn_start, 160, 44);
-    lv_obj_align(ui_btn_start, LV_ALIGN_BOTTOM_MID, 0, -60);
-    lv_obj_set_style_bg_color(ui_btn_start, lv_color_hex(0x33AA33), 0);
-    lv_obj_set_style_radius(ui_btn_start, 12, 0);
-    ui_btn_start_label = lv_label_create(ui_btn_start);
-    lv_label_set_text(ui_btn_start_label, "Start");
-    lv_obj_center(ui_btn_start_label);
-    lv_obj_set_style_text_color(ui_btn_start_label, lv_color_hex(0xFFFFFF), 0);
-    lv_obj_add_event_cb(ui_btn_start, btn_start_cb, LV_EVENT_CLICKED, NULL);
-
-    /* Save Info */
-    ui_btn_info = lv_btn_create(lv_scr_act());
-    lv_obj_set_size(ui_btn_info, 160, 36);
-    lv_obj_align(ui_btn_info, LV_ALIGN_BOTTOM_MID, 0, -18);
-    lv_obj_set_style_bg_color(ui_btn_info, lv_color_hex(0x0077CC), 0);
-    lv_obj_set_style_bg_color(ui_btn_info, lv_color_hex(0x444444), LV_PART_MAIN | LV_STATE_DISABLED);
-    lv_obj_set_style_radius(ui_btn_info, 12, 0);
-    ui_btn_info_label = lv_label_create(ui_btn_info);
-    lv_label_set_text(ui_btn_info_label, "Save Info");
-    lv_obj_center(ui_btn_info_label);
-    lv_obj_set_style_text_color(ui_btn_info_label, lv_color_hex(0xFFFFFF), 0);
-    lv_obj_add_event_cb(ui_btn_info, btn_save_info_cb, LV_EVENT_CLICKED, NULL);
-
-    /* ==================== Page 2: Diagnostic ==================== */
-
-    /* Title */
-    ui_label_title2 = lv_label_create(lv_scr_act());
-    lv_label_set_text(ui_label_title2, "ECG Diag");
-    lv_obj_set_style_text_color(ui_label_title2, lv_color_hex(0xFFFFFF), 0);
-    lv_obj_set_style_text_font(ui_label_title2, &lv_font_montserrat_14, 0);
-    lv_obj_align(ui_label_title2, LV_ALIGN_TOP_MID, 0, 10);
-
-    /* Diag rows */
-    int y = 40;
-    int dy = 16;
-
-    ui_label_status_reg = lv_label_create(lv_scr_act());
-    lv_label_set_text(ui_label_status_reg, "STATUS: 0x000000");
-    lv_obj_set_style_text_color(ui_label_status_reg, lv_color_hex(0x44AAFF), 0);
-    lv_obj_align(ui_label_status_reg, LV_ALIGN_TOP_LEFT, 10, y); y += dy;
-
-    ui_label_pll_seen = lv_label_create(lv_scr_act());
-    lv_label_set_text(ui_label_pll_seen, "PLL seen: 0");
-    lv_obj_set_style_text_color(ui_label_pll_seen, lv_color_hex(0xCCAA44), 0);
-    lv_obj_align(ui_label_pll_seen, LV_ALIGN_TOP_LEFT, 10, y); y += dy;
-
-    ui_label_pll_edge = lv_label_create(lv_scr_act());
-    lv_label_set_text(ui_label_pll_edge, "PLL edge: 0");
-    lv_obj_set_style_text_color(ui_label_pll_edge, lv_color_hex(0xCCAA44), 0);
-    lv_obj_align(ui_label_pll_edge, LV_ALIGN_TOP_LEFT, 10, y); y += dy;
-
-    ui_label_eovf = lv_label_create(lv_scr_act());
-    lv_label_set_text(ui_label_eovf, "EOVF: 0");
-    lv_obj_set_style_text_color(ui_label_eovf, lv_color_hex(0xCCAA44), 0);
-    lv_obj_align(ui_label_eovf, LV_ALIGN_TOP_LEFT, 10, y); y += dy;
-
-    ui_label_written = lv_label_create(lv_scr_act());
-    lv_label_set_text(ui_label_written, "Written: 0");
-    lv_obj_set_style_text_color(ui_label_written, lv_color_hex(0x88CC88), 0);
-    lv_obj_align(ui_label_written, LV_ALIGN_TOP_LEFT, 10, y); y += dy;
-
-    ui_label_ppg_irq = lv_label_create(lv_scr_act());
-    lv_label_set_text(ui_label_ppg_irq, "PPG IRQ: 0");
-    lv_obj_set_style_text_color(ui_label_ppg_irq, lv_color_hex(0xFFAA44), 0);
-    lv_obj_align(ui_label_ppg_irq, LV_ALIGN_TOP_LEFT, 10, y); y += dy;
-
-    ui_label_ppg_int = lv_label_create(lv_scr_act());
-    lv_label_set_text(ui_label_ppg_int, "PPG INT: UNKNOWN");
-    lv_obj_set_style_text_color(ui_label_ppg_int, lv_color_hex(0xFFAA44), 0);
-    lv_obj_align(ui_label_ppg_int, LV_ALIGN_TOP_LEFT, 10, y); y += dy;
-
-    ui_label_ppg_ie1_is1 = lv_label_create(lv_scr_act());
-    lv_label_set_text(ui_label_ppg_ie1_is1, "IE1/IS1: 00/00");
-    lv_obj_set_style_text_color(ui_label_ppg_ie1_is1, lv_color_hex(0xFF8844), 0);
-    lv_obj_align(ui_label_ppg_ie1_is1, LV_ALIGN_TOP_LEFT, 10, y); y += dy;
-
-    ui_label_ppg_fifo_wr_rd = lv_label_create(lv_scr_act());
-    lv_label_set_text(ui_label_ppg_fifo_wr_rd, "FIFO W/R: 00/00");
-    lv_obj_set_style_text_color(ui_label_ppg_fifo_wr_rd, lv_color_hex(0xFF8844), 0);
-    lv_obj_align(ui_label_ppg_fifo_wr_rd, LV_ALIGN_TOP_LEFT, 10, y); y += dy;
-
-    ui_label_ppg_fifo_ov = lv_label_create(lv_scr_act());
-    lv_label_set_text(ui_label_ppg_fifo_ov, "FIFO OV: 00");
-    lv_obj_set_style_text_color(ui_label_ppg_fifo_ov, lv_color_hex(0xFF8844), 0);
-    lv_obj_align(ui_label_ppg_fifo_ov, LV_ALIGN_TOP_LEFT, 10, y); y += dy;
-
-    ui_label_ppg_mode = lv_label_create(lv_scr_act());
-    lv_label_set_text(ui_label_ppg_mode, "MODE: 00");
-    lv_obj_set_style_text_color(ui_label_ppg_mode, lv_color_hex(0xFF8844), 0);
-    lv_obj_align(ui_label_ppg_mode, LV_ALIGN_TOP_LEFT, 10, y); y += dy;
-
-    /* 默认显示 Page 1, 隐藏 Page 2 */
-    lv_obj_t *hide_init[] = {
-        ui_label_title2, ui_label_status_reg, ui_label_pll_seen,
-        ui_label_pll_edge, ui_label_eovf, ui_label_written,
-        ui_label_ppg_irq, ui_label_ppg_int,
-        ui_label_ppg_ie1_is1, ui_label_ppg_fifo_wr_rd,
-        ui_label_ppg_fifo_ov, ui_label_ppg_mode
-    };
-    for (size_t i = 0; i < sizeof(hide_init)/sizeof(hide_init[0]); i++) {
-        lv_obj_add_flag(hide_init[i], LV_OBJ_FLAG_HIDDEN);
-    }
-
+    reset_ui_cache();
+    ui_update_cb(NULL);
     lv_timer_create(ui_update_cb, 500, NULL);
 }
 
 void APP_LVGL_Process(void)
 {
+    /* Idle backlight timeout: turn off after UI_BACKLIGHT_IDLE_MS */
+    if (s_backlight_on && (HAL_GetTick() - s_last_touch_tick) >= UI_BACKLIGHT_IDLE_MS) {
+        set_backlight_state(0U);
+    }
     lv_timer_handler();
+}
+
+uint32_t APP_LVGL_GetProcessDelayMs(void)
+{
+    return s_backlight_on ? 10U : 50U;
 }

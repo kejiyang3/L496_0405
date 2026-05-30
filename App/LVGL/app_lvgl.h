@@ -26,6 +26,13 @@ void APP_LVGL_Init(void);
  *       It handles LVGL internal timers and display refreshes.
  */
 void APP_LVGL_Process(void);
+uint32_t APP_LVGL_GetProcessDelayMs(void);
+
+/**
+ * @brief Notify the UI that touch activity was detected.
+ * @return 1 if this touch was consumed only to wake the backlight.
+ */
+uint8_t APP_LVGL_NotifyTouchActivity(void);
 
 /**
  * @brief Create a simple test UI with toggle button

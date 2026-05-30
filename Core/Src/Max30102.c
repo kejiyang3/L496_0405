@@ -8,11 +8,17 @@
 extern I2C_HandleTypeDef hi2c3;
 
 volatile uint8_t max30102_int_flag = 0;
+volatile uint32_t g_max30102_fifo_read_ok_count = 0;
+volatile uint32_t g_max30102_fifo_read_fail_count = 0;
+volatile uint32_t g_max30102_fifo_empty_count = 0;
+volatile uint32_t g_max30102_fifo_ov_count = 0;
+static uint8_t s_max30102_last_ov_counter = 0;
 
 /* 写 I2C 寄存器 helper */
 static ErrorStatus _write_reg(uint8_t reg, uint8_t data)
 {
-    if (HAL_I2C_Mem_Write(&hi2c3, MAX30102_I2C_ADDR, reg, I2C_MEMADD_SIZE_8BIT, &data, 1, 10) == HAL_OK)
+    if (HAL_I2C_Mem_Write(&hi2c3, MAX30102_I2C_ADDR, reg, I2C_MEMADD_SIZE_8BIT,
+                          &data, 1, RECORD_PPG_I2C_TIMEOUT_MS) == HAL_OK)
         return SUCCESS;
     return ERROR;
 }
@@ -20,14 +26,16 @@ static ErrorStatus _write_reg(uint8_t reg, uint8_t data)
 /* 读 I2C 寄存器 helper */
 static ErrorStatus _read_regs(uint8_t reg, uint8_t *buf, uint16_t len)
 {
-    if (HAL_I2C_Mem_Read(&hi2c3, MAX30102_I2C_ADDR, reg, I2C_MEMADD_SIZE_8BIT, buf, len, 10) == HAL_OK)
+    if (HAL_I2C_Mem_Read(&hi2c3, MAX30102_I2C_ADDR, reg, I2C_MEMADD_SIZE_8BIT,
+                         buf, len, RECORD_PPG_I2C_TIMEOUT_MS) == HAL_OK)
         return SUCCESS;
     return ERROR;
 }
 
 ErrorStatus MAX30102_CheckDevice(void)
 {
-    if (HAL_I2C_IsDeviceReady(&hi2c3, MAX30102_I2C_ADDR, 1, 10) == HAL_OK) {
+    if (HAL_I2C_IsDeviceReady(&hi2c3, MAX30102_I2C_ADDR, 1,
+                              RECORD_PPG_I2C_TIMEOUT_MS) == HAL_OK) {
         return SUCCESS;
     }
     return ERROR;
@@ -40,7 +48,8 @@ ErrorStatus MAX30102_WriteByte(uint8_t reg, uint8_t data)
 
 ErrorStatus MAX30102_WriteBuffer(uint8_t reg, uint8_t *buffer, uint16_t len)
 {
-    if (HAL_I2C_Mem_Write(&hi2c3, MAX30102_I2C_ADDR, reg, I2C_MEMADD_SIZE_8BIT, buffer, len, 10) == HAL_OK)
+    if (HAL_I2C_Mem_Write(&hi2c3, MAX30102_I2C_ADDR, reg, I2C_MEMADD_SIZE_8BIT,
+                          buffer, len, RECORD_PPG_I2C_TIMEOUT_MS) == HAL_OK)
         return SUCCESS;
     return ERROR;
 }
@@ -112,9 +121,9 @@ MAX30102_InitResult_t MAX30102_Init(void)
     _read_regs(INTERRUPT_STATUS2, &data2, 1);
 
     /* Step 6: 配置寄存器 (有限重试) */
-    if (_write_reg(FIFO_CONFIGURATION, 0x5F) != SUCCESS) return MAX30102_INIT_CONFIG_FAILED;
+    if (_write_reg(FIFO_CONFIGURATION, MAX30102_FIFO_CONFIG_STABLE) != SUCCESS) return MAX30102_INIT_CONFIG_FAILED;
     if (_write_reg(MODE_CONFIGURATION, 0x03) != SUCCESS) return MAX30102_INIT_CONFIG_FAILED;
-    if (_write_reg(SPO2_CONFIGURATION, 0x2A) != SUCCESS) return MAX30102_INIT_CONFIG_FAILED;
+    if (_write_reg(SPO2_CONFIGURATION, MAX30102_SPO2_CONFIG_50SPS_18B) != SUCCESS) return MAX30102_INIT_CONFIG_FAILED;
     if (_write_reg(LED1_PULSE_AMPLITUDE, 0x2F) != SUCCESS) return MAX30102_INIT_CONFIG_FAILED;
     if (_write_reg(LED2_PULSE_AMPLITUDE, 0x2F) != SUCCESS) return MAX30102_INIT_CONFIG_FAILED;
     if (_write_reg(TEMPERATURE_CONFIG, 0x00) != SUCCESS) return MAX30102_INIT_CONFIG_FAILED;
@@ -266,6 +275,10 @@ float MAX30102_getSpO2(float *ir_input_data, float *red_input_data, uint16_t cac
 uint8_t MAX30102_ReadFIFO_Batch(uint32_t *ir_buf, uint32_t *red_buf, uint8_t max_len)
 {
     uint8_t status, wr_ptr, rd_ptr, ov_counter;
+    uint8_t ptrs[MAX30102_FIFO_POINTER_SNAPSHOT_BYTES];
+    if (max_len > RECORD_PPG_FIFO_DRAIN_MAX_SAMPLES) {
+        max_len = RECORD_PPG_FIFO_DRAIN_MAX_SAMPLES;
+    }
 
     /* 读取 INTERRUPT_STATUS1 以释放 MAX30102 INT 引脚 */
     if (_read_regs(INTERRUPT_STATUS1, &status, 1) != SUCCESS) {
@@ -275,27 +288,62 @@ uint8_t MAX30102_ReadFIFO_Batch(uint32_t *ir_buf, uint32_t *red_buf, uint8_t max
      * 即使 status & 0x80 == 0，仍继续根据 FIFO 指针判断是否有数据。
      * 原因：A_FULL 可能因溢出/时序原因不置位，但 FIFO 中仍有样本。 */
 
-    _read_regs(FIFO_WR_POINTER, &wr_ptr, 1);
-    _read_regs(FIFO_OV_COUNTER, &ov_counter, 1);
-    _read_regs(FIFO_RD_POINTER, &rd_ptr, 1);
+    if (_read_regs(FIFO_WR_POINTER, ptrs, sizeof(ptrs)) != SUCCESS) {
+        g_max30102_fifo_read_fail_count++;
+        return 0;
+    }
+    wr_ptr = (uint8_t)(ptrs[0] & MAX30102_FIFO_OV_COUNTER_MASK);
+    ov_counter = (uint8_t)(ptrs[1] & MAX30102_FIFO_OV_COUNTER_MASK);
+    rd_ptr = (uint8_t)(ptrs[2] & MAX30102_FIFO_OV_COUNTER_MASK);
 
     int8_t num_avail = 0;
     if (wr_ptr == rd_ptr) {
-        num_avail = ((ov_counter & 0x0F) != 0) ? 32 : 0;
+        num_avail = (ov_counter != 0U) ? 32 : 0;
     } else {
         num_avail = (int8_t)wr_ptr - (int8_t)rd_ptr;
         if (num_avail < 0) num_avail += 32;
     }
 
+    if (ov_counter != 0U &&
+        ov_counter != s_max30102_last_ov_counter) {
+        g_max30102_fifo_ov_count++;
+        s_max30102_last_ov_counter = ov_counter;
+    }
+
     if (num_avail > max_len) num_avail = max_len;
 
-    for (int8_t i = 0; i < num_avail; i++) {
-        MAX30102_ReadSample18(&ir_buf[i], &red_buf[i]);
+    if (num_avail <= 0) {
+        g_max30102_fifo_empty_count++;
+        return 0;
     }
 
-    if (num_avail == 32) {
+    {
+        uint8_t fifo_raw[RECORD_PPG_FIFO_DRAIN_MAX_SAMPLES * 6U];
+        uint16_t byte_count = (uint16_t)num_avail * 6U;
+
+        if (_read_regs(FIFO_DATA, fifo_raw, byte_count) != SUCCESS) {
+            g_max30102_fifo_read_fail_count++;
+            return 0;
+        }
+
+        for (int8_t i = 0; i < num_avail; i++) {
+            uint8_t *rx = &fifo_raw[(uint16_t)i * 6U];
+            uint32_t red = ((((uint32_t)rx[0]) << 16) |
+                            (((uint32_t)rx[1]) << 8)  |
+                             ((uint32_t)rx[2])) & 0x03FFFFu;
+            uint32_t ir  = ((((uint32_t)rx[3]) << 16) |
+                            (((uint32_t)rx[4]) << 8)  |
+                             ((uint32_t)rx[5])) & 0x03FFFFu;
+
+            ir_buf[i] = ir;
+            red_buf[i] = red;
+        }
+    }
+
+    if (ov_counter != 0U) {
         _write_reg(FIFO_OV_COUNTER, 0x00);
     }
+    g_max30102_fifo_read_ok_count += (uint32_t)num_avail;
     return (uint8_t)num_avail;
 }
 
@@ -303,10 +351,16 @@ ErrorStatus MAX30102_EnableFifoAlmostFullInterrupt(void)
 {
     /* 清 pending */
     uint8_t s1, s2;
+    if (_write_reg(INTERRUPT_ENABLE1, 0x00) != SUCCESS) return ERROR;
+    if (_write_reg(INTERRUPT_ENABLE2, 0x00) != SUCCESS) return ERROR;
+    if (_write_reg(FIFO_WR_POINTER, 0x00) != SUCCESS) return ERROR;
+    if (_write_reg(FIFO_OV_COUNTER, 0x00) != SUCCESS) return ERROR;
+    if (_write_reg(FIFO_RD_POINTER, 0x00) != SUCCESS) return ERROR;
+    s_max30102_last_ov_counter = 0;
     MAX30102_ClearInterruptStatus(&s1, &s2);
 
-    /* 使能 A_FULL 中断 */
-    if (_write_reg(INTERRUPT_ENABLE1, 0x80) != SUCCESS) return ERROR;
+    /* 使能 A_FULL + PPG_RDY: PC2 中断作为 PPG 读取主触发源。 */
+    if (_write_reg(INTERRUPT_ENABLE1, MAX30102_INT_ENABLE_RECORDING) != SUCCESS) return ERROR;
     if (_write_reg(INTERRUPT_ENABLE2, 0x00) != SUCCESS) return ERROR;
 
     /* 再次清 pending */
@@ -333,7 +387,7 @@ void MAX30102_Debug_Poll_INT_Pin(void)
 {
     uint32_t high_cnt = 0, low_cnt = 0;
 
-    APP_USB_LOG("[DIAG] Start Polling MAX30102 PPG_INT Pin (PH1) for 2 seconds...\r\n");
+    APP_USB_LOG("[DIAG] Start Polling MAX30102 PPG_INT Pin (PC2) for 2 seconds...\r\n");
 
     for (int i = 0; i < 200; i++) {
         if (HAL_GPIO_ReadPin(PPG_INT_GPIO_Port, PPG_INT_Pin) == GPIO_PIN_SET) {

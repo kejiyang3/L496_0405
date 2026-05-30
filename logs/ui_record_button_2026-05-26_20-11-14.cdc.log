@@ -1,0 +1,38 @@
+[20:11:14.881] ✅ 连接成功，开始接收数据
+[20:11:28.787] ✅ 连接成功，开始接收数据
+[20:11:28.787] 📈 累计重连次数: 2
+[20:11:31.176] [SYS] RTOS Started, USB CDC Ready!
+[20:11:31.176] [SDDBG][ERR] mount path=0:/debug_log.txt res=3
+[20:11:31.442] [ECG_V1] Sensor task started
+[20:11:31.442] [SENSOR_INIT]
+[20:11:31.442] [MAX30102] I2C CALL FAIL, DEVICE NOT FOUND
+[20:11:31.442] [ICM20948] INIT OK (WHO_AM_I + 10x probe passed)
+[20:11:31.442] [/SENSOR_INIT]
+[20:11:31.442] [SDDBG][ERR] mount path=0:/debug_log.txt res=1
+[20:11:31.443] [SDDBG][ERR] mount path=0:/debug_log.txt res=1
+[20:11:31.443] [SENSOR] before MAX30003_Init
+[20:11:31.443] [MAX30003] Initializing...
+[20:11:31.443] [MAX30003_INIT] step=cs
+[20:11:31.443] [MAX30003_INIT] step=sw_reset
+[20:11:31.474] [MAX30003_INIT] step=status1
+[20:11:31.474] [MAX30003_INIT] step=status2
+[20:11:31.474] [MAX30003_INIT] step=info1
+[20:11:31.475] [MAX30003_INIT] step=info2
+[20:11:31.490] step=info3
+[20:11:31.490] [MAX30003] INFO=0x513639
+[20:11:31.491] [MAX30003_INIT] step=cnfg_ecg
+[20:11:31.491] [MAX30003][OK] CNFG_ECG = 0x025000
+[20:11:31.491] ] CNFG_CAL = 0x000000
+[20:11:31.601] [MAX30003][OK] CNFG_EMUX = 0x000000
+[20:11:31.601] [MAX30003_INIT] step=mngr_dyn_skip
+[20:11:31.602] [MAX30003_INIT] step=pll_wait
+[20:11:31.602] [MAX30003_INIT] step=en_int
+[20:11:31.602] [MAX30003][OK] EN_INT = 0x000002
+[20:11:31.602] [MAX30003_INIT] step=mngr_int
+[20:11:31.602] [MAX30003][OK] MNGR_INT = 0x200000
+[20:11:31.633] [MAX30003] Init done. STATUS=0x000100
+[20:11:31.633] [SENSOR] after MAX30003_Init
+[20:11:31.633] [SDDBG][ERR] mount path=0:/debug_log.txt res=1
+[20:11:32.130] [SENSOR] after MAX30003_INIT_DONE log
+[20:11:32.131] [SDDBG][ERR] newfile mount path=0:/log_001.txt res=1
+[20:11:32.131] [MS_SD] mount begin file=0:/ecg_001.csv

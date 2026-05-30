@@ -67,10 +67,10 @@ extern volatile uint8_t ecg_streaming;
 /* Private defines -----------------------------------------------------------*/
 #define ECG_CS_Pin GPIO_PIN_13
 #define ECG_CS_GPIO_Port GPIOC
-#define PPG_INT_Pin GPIO_PIN_1
-#define PPG_INT_GPIO_Port GPIOH
-#define ICM_INT_Pin GPIO_PIN_2
-#define ICM_INT_GPIO_Port GPIOC
+#define PPG_INT_Pin GPIO_PIN_2
+#define PPG_INT_GPIO_Port GPIOC
+#define ICM_INT_Pin GPIO_PIN_1
+#define ICM_INT_GPIO_Port GPIOH
 #define KEY_BTN_Pin GPIO_PIN_1
 #define KEY_BTN_GPIO_Port GPIOA
 #define LCD_RST_Pin GPIO_PIN_2
@@ -104,7 +104,9 @@ extern volatile uint8_t ecg_streaming;
 #define ICM_INT_LINE_PULLDOWN_TEST_ENABLE 0
 
 /* ===== MAX30003 心电中断读取配置 ===== */
-#define ECG_SAMPLE_RATE_HZ          512       /* ECG采样率 */
+#define ECG_SAMPLE_RATE_HZ          RECORD_ECG_SAMPLE_RATE_HZ
+#define ECG_FCLK_MCO_GPIO_SPEED     GPIO_SPEED_FREQ_VERY_HIGH
+#define ECG_LSE_DRIVE               RCC_LSEDRIVE_HIGH
 
 /* USER CODE END Private defines */
 

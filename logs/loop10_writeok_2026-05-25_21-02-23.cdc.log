@@ -1,0 +1,46 @@
+[21:02:23.801] ✅ 连接成功，开始接收数据
+[21:02:24.572] ⚠ 串口异常: ClearCommError failed (PermissionError(13, '设备不识别此命令。', None, 22))
+[21:02:24.572] ⚠ 连接断开，等待重连...
+[21:02:24.885] ❌ 连接失败，重试中...
+[21:02:28.245] ❌ 连接失败，重试中...
+[21:02:28.909] ✅ 连接成功，开始接收数据
+[21:02:28.909] 📈 累计重连次数: 2
+[21:02:31.380] [ECG_V1] Sensor task started
+[21:02:31.411] [SENSOR] before MAX30003_Init
+[21:02:31.555] [SENSOR] after MAX30003_Init
+[21:02:31.555] [SENSOR] after MAX30003_INIT_DONE log
+[21:02:31.602] [SDDBG] new log opened path=0:/log_001.txt
+[21:02:31.618] [MS_SD] mount begin file=0:/ecg_001.csv
+[21:02:31.618] [MS_SD] mount ok
+[21:02:31.618] [MS_SD] open begin file=0:/ecg_001.csv
+[21:02:31.634] [MS_SD] open ok
+[21:02:31.634] [MS_SD] header ok bw=41
+[21:02:31.664] [MS_SD] first sync res=0
+[21:02:31.696] [MS_SD] file opened and released
+[21:02:31.712] [REC] record start file_opened=1 tick=3366
+[21:02:31.712] [REC] before MAX30003_StartStream tick=3367
+[21:02:31.728] [REC] after MAX30003_StartStream tick=3368 start_tick=3250
+[21:02:41.608] [ECG_AUTO_STOP] t=13254
+[21:02:41.608] [MAX30003] StopStream done. STATUS=0x100109
+[21:02:41.640] [MS_SUBMIT] ECG ok idx=0 count=1005 q=1 ok=1
+[21:02:41.640] [MS_SD] close final_sync=0 close=0 bytes=41 ecg_written=0
+[21:02:41.688] [REC_STOP]
+[21:02:41.688] [DUMP_REQ]
+[21:02:41.801] [DUMP_BEGIN]
+[21:02:41.801] [DATA_FILE_BEGIN]
+[21:02:41.816] timestamp_ms,type,seq,v1,v2,v3,v4,v5,v6
+[21:02:41.848] [DATA_FILE_END]
+[21:02:41.880] [DUMP_DONE] bytes=41
+[21:02:41.880] [LOG_FILE_BEGIN]
+[21:02:41.911] tick,event
+[21:02:41.911] 3226,LOG_FILE_BEGIN,seq=1
+[21:02:41.927] 3319,MULTI_SENSOR_FILE_OPENED
+[21:02:41.927] 3320,RECORD_START
+[21:02:41.959] 13256,MULTI_SENSOR_FLUSH_BEGIN
+[21:02:41.991] 13276,MULTI_SENSOR_FLUSH_END
+[21:02:41.991] 13294,RECORD_STOP_REQUEST
+[21:02:42.087] 13314,SNAPSHOT,state=2,samples=1005,written=0,drop=0,bytes=41,sync=1,fifo=5046,valid=1005,fast=4041,last=2008,eovf=0,etag_ovf=0,etag_unknown=0,pll_seen=7060,pll_edge=4,status=0x100109
+[21:02:42.214] 13315,MULTI_STATS,ecg_samples=0,ecg_write_ok=0,ecg_write_fail=0,ppg_samples=0,ppg_write_ok=0,ppg_write_fail=0,imu_samples=0,imu_write_ok=0,imu_write_fail=0,ecg_drop_blk=0,ppg_drop_blk=0,imu_d13363,MULTI_SENSOR_RECORD_STOPPED
+[21:02:42.245] [LOG_FILE_END]
+[21:02:42.276] [DUMP_DONE] bytes=589
+[21:02:42.276] [DUMP_ALL_DONE]

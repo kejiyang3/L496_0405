@@ -1,0 +1,44 @@
+[20:53:20.195] ❌ 连接失败，重试中...
+[20:53:23.437] ❌ 连接失败，重试中...
+[20:53:25.938] ✅ 连接成功，开始接收数据
+[20:53:28.013] [ECG_V1] Sensor task started
+[20:53:28.044] [SENSOR] before MAX30003_Init
+[20:53:28.186] [SENSOR] after MAX30003_Init
+[20:53:28.202] [SENSOR] after MAX30003_INIT_DONE log
+[20:53:28.233] [SDDBG] new log opened path=0:/log_001.txt
+[20:53:28.248] [MS_SD] mount begin file=0:/ecg_001.csv
+[20:53:28.248] [MS_SD] mount ok
+[20:53:28.248] [MS_SD] open begin file=0:/ecg_001.csv
+[20:53:28.264] [MS_SD] open ok
+[20:53:28.281] [MS_SD] header ok bw=41
+[20:53:28.296] [MS_SD] first sync res=0
+[20:53:28.311] [MS_SD] file opened and released
+[20:53:28.327] [REC] record start file_opened=1 tick=3336
+[20:53:28.327] [REC] before MAX30003_StartStream tick=3337
+[20:53:28.327] [REC] after MAX30003_StartStream tick=3338 start_tick=3255
+[20:53:37.854] [MS_SUBMIT] ECG ok idx=0 count=1024 q=1 ok=1
+[20:53:37.902] [MS_WRITER] wrote type=1 total=1 bytes=41 ecg_written=0 fail=1024
+[20:53:38.252] [ECG_AUTO_STOP] t=13255
+[20:53:38.268] tream done. STATUS=0x100109
+[20:53:38.268] [MS_SUBMIT] ECG ok idx=1 count=31 q=1 ok=2
+[20:53:38.299] [MS_WRITER] wrote type=1 total=2 bytes=41 ecg_written=0 fail=1055
+[20:53:38.299] [REC_STOP]
+[20:53:38.331] [MS_SD] close final_sync=9 close=9 bytes=41 ecg_written=0
+[20:53:38.409] [DUMP_REQ]
+[20:53:38.409] [DUMP_BEGIN]
+[20:53:38.441] [DATA_FILE_BEGIN]
+[20:53:38.472] timestamp_ms,type,seq,v1,v2,v3,v4,v5,v6
+[20:53:38.488] [DATA_FILE_END]
+[20:53:38.488] [DUMP_DONE] bytes=41
+[20:53:38.520] [LOG_FILE_BEGIN]
+[20:53:38.552] tick,event
+[20:53:38.552] 3234,LOG_FILE_BEGIN,seq=1
+[20:53:38.568] 3311,MULTI_SENSOR_FILE_OPENED
+[20:53:38.568] 3315,RECORD_START
+[20:53:38.600] 13257,MULTI_SENSOR_FLUSH_BEGIN
+[20:53:38.632] 13271,MULTI_SENSOR_FLUSH_END
+[20:53:38.632] 13286,RECORD_STOP_REQUEST
+[20:53:38.727] 13297,SNAPSHOT,state=2,samples=1055,written=0,drop=0,bytes=41,sync=1,fifo=5057,valid=1055,fast=4002,last=2024,eovf=0,etag_ovf=0,etag_unknown=0,pll_seen=7072,pll_edge=6,status=0x100109
+[20:53:38.853] 13312,MULTI_STATS,ecg_samples=0,ecg_write_ok=0,ecg_write_fail=1055,ppg_samples=0,ppg_write_ok=0,ppg_write_fail=0,imu_samples=0,imu_write_ok=0,imu_write_fail=0,ecg_drop_blk=0,ppg_drop_blk=0,im13329,MULTI_SENSOR_RECORD_STOPPED
+[20:53:38.885] [LOG_FILE_END]
+[20:53:38.885] [DUMP_DONE] bytes=589

@@ -1,0 +1,10 @@
+Traceback (most recent call last):
+  File "C:\Users\ycs\.codex\skills\serial-monitor\scripts\serial_monitor.py", line 724, in <module>
+    sys.exit(main())
+  File "C:\Users\ycs\.codex\skills\serial-monitor\scripts\serial_monitor.py", line 693, in main
+    logs = read_serial(
+  File "C:\Users\ycs\.codex\skills\serial-monitor\scripts\serial_monitor.py", line 440, in read_serial
+    if ser.in_waiting > 0:
+  File "C:\Users\ycs\AppData\Roaming\Python\Python39\site-packages\serial\serialwin32.py", line 259, in in_waiting
+    raise SerialException("ClearCommError failed ({!r})".format(ctypes.WinError()))
+serial.serialutil.SerialException: ClearCommError failed (PermissionError(13, '设备不识别此命令。', None, 22))

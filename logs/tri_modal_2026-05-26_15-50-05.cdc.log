@@ -1,0 +1,83 @@
+[15:50:05.844] ✅ 连接成功，开始接收数据
+[15:50:19.302] ✅ 连接成功，开始接收数据
+[15:50:19.302] 📈 累计重连次数: 2
+[15:50:21.618] [SYS] RTOS Started, USB CDC Ready!
+[15:50:21.618] [ECG_V1] Sensor task started
+[15:50:21.897] [SENSOR_INIT]
+[15:50:21.897] [MAX30102] I2C CALL FAIL, DEVICE NOT FOUND
+[15:50:21.897] [ICM20948] INIT OK (WHO_AM_I + 10x probe passed)
+[15:50:21.897] [/SENSOR_INIT]
+[15:50:21.897] [SENSOR] before MAX30003_Init
+[15:50:21.897] [MAX30003] Initializing...
+[15:50:21.898] [MAX30003_INIT] step=cs
+[15:50:21.929] [MAX30003_INIT] step=sw_reset
+[15:50:21.929] [MAX30003_INIT] step=status1
+[15:50:21.929] [MAX30003_INIT] step=status2
+[15:50:21.930] [MAX30003_INIT] step=info1
+[15:50:21.930] step=info2
+[15:50:21.930] [MAX30003_INIT] step=info3
+[15:50:21.945] [MAX3000
+[15:50:21.945] [MAX30003_INIT] step=cnfg_ecg
+[15:50:21.946] NFG_ECG = 0x025000
+[15:50:46.918] [MAX30003_INIT] step=cnfg_ge
+[15:50:47.844] ✅ 连接成功，开始接收数据
+[15:50:47.844] 📈 累计重连次数: 3
+[15:50:50.010] [SYS] RTOS Started, USB CDC Ready!
+[15:50:50.010] [ECG_V1] Sensor task started
+[15:50:50.291] [SENSOR_INIT]
+[15:50:50.291] [MAX30102] I2C CALL FAIL, DEVICE NOT FOUND
+[15:50:50.291] [ICM20948] INIT OK (WHO_AM_I + 10x probe passed)
+[15:50:50.292] [/SENSOR_INIT]
+[15:50:50.293] [SENSOR] before MAX30003_Init
+[15:50:50.293] [MAX30003] Initializing...
+[15:50:50.293] [MAX30003_INIT] step=cs
+[15:50:50.322] [MAX30003_INIT] step=sw_reset
+[15:50:50.322] [MAX30003_INIT] step=status1
+[15:50:50.324] [MAX30003_INIT] step=status2
+[15:50:50.324] [MAX30003_INIT] step=info1
+[15:50:50.324] step=info2
+[15:50:50.324] [MAX30003_INIT] step=info3
+[15:50:50.338] [MAX3000
+[15:50:50.338] [MAX30003_INIT] step=cnfg_ecg
+[15:50:50.339] NFG_ECG = 0x025000
+[15:50:50.430] [MAX30003_INIT] step=cnfg_gen
+[15:50:50.431] [MAX30003][OK] CNFG_GEN = 0x081217
+[15:50:50.445] [MAX30003][OK] CNFG_CAL = 0x000000
+[15:50:50.446] [MAX30003][OK] CNFG_EMUX = 0x000000
+[15:50:50.447] [MAX30003_INIT] step=mngr_dyn_skip
+[15:50:50.447] [MAX30003_INIT] step=pll_wait
+[15:50:50.447] [MAX30003_INIT] step=en_int
+[15:50:50.493] [MAX30003][OK] EN_INT = 0x000002
+[15:50:50.493] [MAX30003_INIT] step=mngr_int
+[15:50:50.494] [MAX30003][OK] MNGR_INT = 0x200000
+[15:50:50.509] [MAX30003] Init done. STATUS=0x000100
+[15:50:50.509] [SENSOR] after MAX30003_Init
+[15:50:50.511] [SENSOR] after MAX30003_INIT_DONE log
+[15:50:50.586] [SDDBG] new log opened path=0:/log_001.txt
+[15:50:50.586] [MS_SD] mount begin file=0:/ecg_001.csv
+[15:50:50.586] [MS_SD] mount ok
+[15:50:50.587] [MS_SD] open begin file=0:/ecg_001.csv
+[15:50:50.588] [MS_SD] open ok
+[15:50:50.588] [MS_SD] header ok bw=41
+[15:50:50.588] [MS_SD] first sync res=0
+[15:50:50.588] [MS_SD] file opened and released
+[15:50:50.588] [REC] record start file_opened=1 tick=3540
+[15:50:50.588] [MIC] open ok file=0:/mic_001.wav
+[15:50:50.588] [MIC] dma_start ret=0 words=16384 bytes=65536
+[15:50:50.588] [REC] before MAX30003_StartStream tick=3615
+[15:50:50.588] [MAX30003_INIT] step=fifo_synch
+[15:51:01.094] =3616
+[15:51:01.094] [ECG_AUTO_STOP] t=13620
+[15:51:01.095] [MAX30003] StopStream done. STATUS=0x100109
+[15:51:01.095] [REC_STOP]
+[15:51:01.141] [MS_SD] close final_sync=0 close=0 bytes=178247 ecg_written=5104
+[15:51:01.141] [MIC] close seek=0 write=0 bw=44 sync=0 close=0 bytes=393216 halves=48 drops=0
+[15:51:01.171] [SESSION] summary saved path=0:/session_002.txt
+[15:51:01.202] [DUMP_REQ]
+[15:51:01.218] [LOG_FILE_BEGIN]
+[15:51:01.250] tick,event
+[15:51:01.250] 3473,LOG_FILE_BEGIN,seq=1
+[15:51:01.297] 14077,MULTI_STATS,seq=1,epoch=3480,ecg_start=3616,ecg_stop=13620,mic_dma_start=3612,mic_first_half=3830,m[DUMP_BEGIN]
+[15:51:01.376] ic_stop=0,ecg_samples=5104,ecg_write_ok=5104,ecg_write_fail=0,ppg_samples=0,ppg_write_14080,MULTI_SENSOR_RECORD_STOPPED
+[15:51:01.438] 14084,IMU_STATS,read_ok=501,read_fail=0,samples=501,write_ok=501,write_fail=0,drop_blk=0
+[15:51:01.642] 14121,SNAPSHOT,state=3,seq=2,epoch=3480,ecg_start=3616,ecg_stop=13620,mic_power=3539,mic_open=3605,mic_dma=3612,mic_first_half=3830,mic_stop=14118,mic_bytes=393216,mic_halves=48,mic_drops=0,mic_write_errors=0,samples=5104,written=5104,drop=0,bytes=178247,sync=2,fifo=5104,valid=5104,fast=0,last=2046,eovf=0,etag_ovf=0,etag_unknown=0,pll_seen=5664,pll_edge=734,status=0xD00309

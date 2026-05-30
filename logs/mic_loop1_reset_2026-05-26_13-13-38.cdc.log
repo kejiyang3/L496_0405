@@ -1,0 +1,21 @@
+[13:13:39.514] ✅ 连接成功，开始接收数据
+[13:13:57.235] ✅ 连接成功，开始接收数据
+[13:13:57.235] 📈 累计重连次数: 2
+[13:13:59.823] [ECG_V1] Sensor task started
+[13:13:59.839] [SENSOR] before MAX30003_Init
+[13:13:59.839] [MAX30003] Initializing...
+[13:13:59.839] [MAX30003_INIT] step=cs
+[13:13:59.839] [MAX30003_INIT] step=sw_reset
+[13:13:59.871] [MAX30003_INIT] step=status1
+[13:13:59.871] [MAX30003_INIT] step=status2
+[13:13:59.871] [MAX30003_INIT] step=info1
+[13:13:59.871] [MAX30003_INIT] step=info2
+[13:13:59.872] [MAX30003_INIT] step=info3
+[13:13:59.872] [MAX30003] INFO=0x513639
+[13:13:59.872] [MAX30003_INIT] step=cnfg_ecg
+[13:13:59.887] [MAX30003][OK] CNFG_ECG = 0x025000
+[13:13:59.887] [MAX30003_INIT] step=cnfg_gen
+[13:13:59.887] NFG_GEN = 0x081217
+[13:13:59.887] NFG_CAL = 0x000000
+[13:13:59.887] [MAX30003][OK] CNFG_EMUX = 0x000000
+[13:13:59.887] [MAX30003_INIT] step=mngr_dyn

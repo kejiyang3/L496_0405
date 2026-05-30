@@ -1,0 +1,8 @@
+tick,event
+16633,LOG_FILE_BEGIN,seq=1
+49497,MULTI_STATS,seq=1,epoch=16655,ecg_start=18887,ecg_stop=49010,mic_dma_start=19884,mic_first_half=20365,mic_stop=0,ecg_samples=7164,ecg_write_ok=7164,ecg_write_fail=0,ppg_samples=379,ppg_49510,MULTI_SENSOR_RECORD_STOPPED
+49517,PPG_STATS,intwake=379,towake=1,todrain=0,read_ok=379,read_fail=0,empty=0,fifo_ov=2,samples=379,write_ok=379,write_fail=0,drop_blk=0
+49526,IMU_STATS,read_ok=1572,read_fail=0,samples=1572,write_ok=1572,write_fail=0,drop_blk=0
+49634,MIC_STATS,bytes=499712,halves=61,irq_halves=61,missed_halves=0,drops=0,timeout=0,maxwr=45,pcm_min=-732,pcm_max=2111
+50115,SNAPSHOT,state=3,seq=1,epoch=16655,ecg_start=18887,ecg_stop=49010,mic_power=18765,mic_open=18877,mic_dma=19884,mic_first_half=20365,mic_stop=49634,mic_bytes=499712,mic_halves=61,mic_drops=0,mic_write_errors=0,samples=7164,written=7164,drop=0,bytes=300380,sync=3,fifo=7164,valid=7164,fast=0,last=3158,eovf=14,etag_ovf=0,etag_unknown=0,pll_seen=5803,pll_edge=459,status=0x900309
+50124,SESSION_FINAL,seq=1,ecg_file=ecg_001.csv,mic_file=mic_001.wav,log_file=log_001.txt,duration_ms=30123,ecg_samples=7164,ecg_write_ok=7164,ecg_write_fail=0,ecg_drop_blk=0,ppg_samples=379,p

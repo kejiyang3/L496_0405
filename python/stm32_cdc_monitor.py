@@ -23,9 +23,63 @@ STM32 USB CDC Monitor - 完美解决方案
 import sys
 import time
 import argparse
+import os
+import signal
+import subprocess
 from datetime import datetime
 import serial
 import serial.tools.list_ports
+
+# ========== 单实例锁：防止残留进程抢占 COM 口 ==========
+LOCK_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'logs')
+LOCK_FILE = os.path.join(LOCK_DIR, '.cdc_monitor.lock')
+
+def _acquire_lock(port_name):
+    """检查并清理旧实例，然后创建锁文件"""
+    if port_name is None:
+        return
+    os.makedirs(LOCK_DIR, exist_ok=True)
+
+    # 检查旧锁
+    if os.path.exists(LOCK_FILE):
+        try:
+            with open(LOCK_FILE, 'r') as f:
+                old_pid, old_port = f.read().strip().split(',')
+            old_pid = int(old_pid)
+            if old_port == port_name and old_pid != os.getpid():
+                # 旧进程是否还活着
+                try:
+                    os.kill(old_pid, 0)  # 信号 0 仅测试存活
+                    print(f"⚠ 发现残留进程 PID={old_pid} 占用 {port_name}，正在终止...")
+                    os.kill(old_pid, signal.SIGTERM)
+                    time.sleep(0.5)
+                    try:
+                        os.kill(old_pid, 0)
+                        os.kill(old_pid, signal.SIGKILL)
+                    except OSError:
+                        pass  # 已终止
+                except OSError:
+                    pass  # 旧进程已死
+        except (ValueError, OSError, EOFError):
+            pass
+
+    # 写新锁
+    try:
+        with open(LOCK_FILE, 'w') as f:
+            f.write(f"{os.getpid()},{port_name}")
+    except OSError:
+        pass
+
+def _release_lock():
+    """退出时清理锁文件"""
+    try:
+        if os.path.exists(LOCK_FILE):
+            with open(LOCK_FILE, 'r') as f:
+                content = f.read().strip()
+            if content and content.startswith(str(os.getpid())):
+                os.remove(LOCK_FILE)
+    except OSError:
+        pass
 
 class STM32CDCMonitor:
     """STM32 USB CDC监控器 - 完美解决自动重连和数据接收问题"""
@@ -82,6 +136,7 @@ class STM32CDCMonitor:
                 # 尝试四个常用端口
                 for candidate in ['COM8', 'COM7', 'COM6', 'COM12']:
                     try:
+                        _acquire_lock(candidate)
                         self.ser = serial.Serial(
                             port=candidate,
                             baudrate=self.baudrate,
@@ -102,6 +157,7 @@ class STM32CDCMonitor:
                     return False
             else:
                 # 指定了端口，直接连接
+                _acquire_lock(self.port)
                 if self.verbose:
                     print(f"正在连接 {self.port} (波特率: {self.baudrate})...")
                 self.ser = serial.Serial(
@@ -313,6 +369,7 @@ class STM32CDCMonitor:
 
     def cleanup(self):
         """清理资源"""
+        _release_lock()
         # 关闭串口
         if self.ser and self.ser.is_open:
             try:
