@@ -1,11 +1,11 @@
-ï»¿#ifndef RECORD_FEATURE_FLAGS_H
+#ifndef RECORD_FEATURE_FLAGS_H
 #define RECORD_FEATURE_FLAGS_H
 
 #define RECORD_ENABLE_LVGL 1
 #define RECORD_ENABLE_PPG 1
 #define RECORD_ENABLE_ICM 1
 #define RECORD_DEFAULT_RECORD_MS 30000U
-#define RECORD_ENABLE_AUDIO 0  /* P-SW: set 1 to enable full audio */
+#define RECORD_ENABLE_AUDIO 1  /* four-modal audio */
 
 /* ===== MAX30003 + AudioTask / MIC Conflict Diagnostic ===== */
 /* RECORD_DIAG_CASE: 0=normal, 1=CaseA, 2=CaseB, 3=CaseC, 4=CaseD, 5=CaseE, 6=CaseF */
@@ -28,7 +28,7 @@
   #define RECORD_DIAG_AUDIO_SAI_DMA       (RECORD_ENABLE_AUDIO)
   #define RECORD_DIAG_AUDIO_MIC_PACK      (RECORD_ENABLE_AUDIO)
   #define RECORD_DIAG_AUDIO_MIC_SD_WRITE  (RECORD_ENABLE_AUDIO)
-  #define RECORD_DIAG_ECG_ONLY_MODE       0
+  #define RECORD_DIAG_ECG_ONLY_MODE       0  /* restore four-modal */
 #endif
 
 #define RECORD_MIC_SAMPLE_RATE_HZ 8000U
@@ -56,8 +56,20 @@
 #define RECORD_DIAG_RUN_INTERVAL_MS 1000U  /* SD diag log interval */
 #define RECORD_TEST_ECG_COUNT_ONLY 0       /* P-SW-B off */
 #define RECORD_TEST_ECG_FIFO_ONLY 0        /* P-SW-C off */
+#define RECORD_TEST_ECG_STATUS_ONLY 0  /* C3: off ¡ª restore normal FIFO read */
 #define RECORD_TEST_ECG_DIAG_ENABLE 1      /* master diag switch */
 #define RECORD_ECG_TASK_PRIORITY_BOOST 0   /* P-SW-D: 0=normal, 1=boosted */
+
+
+/* === Phase 2: C4 Normal vs Burst FIFO Read === */
+/* 0=Burst read (default), 1=Normal single-word read, 2=Normal read until ETAG last only */
+#define RECORD_TEST_ECG_FIFO_NORMAL_READ 0
+/* C4 sub-mode: fixed read size (0=auto 32, 4/8/16/32=fixed words per read) */
+#define RECORD_TEST_ECG_FIFO_FIXED_SIZE  0
+
+/* === Phase 2: C5 Rate Select === */
+/* 0=512 SPS, 1=256 SPS, 2=128 SPS */
+#define RECORD_TEST_ECG_RATE_SELECT 0
 
 /* === Case F SD Write Experiment Flags === */
 /* F1: drop before f_write (test if f_write is necessary trigger) */
@@ -75,7 +87,7 @@
 /* P3-doc: disable SD debug log (SD_DebugLog_* no-ops) */
 #define RECORD_DIAG_DISABLE_SD_DEBUG_LOG 0
 /* P4: disable ALL SD writes, RAM counting only */
-#define RECORD_DIAG_DISABLE_ALL_SD_WRITES 0
+#define RECORD_DIAG_DISABLE_ALL_SD_WRITES 0  /* restore SD writes */
 
 #endif
 

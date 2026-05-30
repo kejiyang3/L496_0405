@@ -6,6 +6,7 @@
 #include "ecg_record_control.h"
 #include "sd_debug_log.h"
 #include "cmsis_os.h"
+#include "record_feature_flags.h"
 extern volatile uint32_t ecg_irq_count;
 #include <stdio.h>
 #include <string.h>
@@ -30,6 +31,28 @@ static HAL_StatusTypeDef MAX30003_SPI_WaitSet(uint32_t flag)
         if (--timeout == 0U) {
             return HAL_TIMEOUT;
         }
+    }
+    return HAL_OK;
+}
+
+
+/**
+  * @brief  C4: Normal (single-word) FIFO read
+  */
+static HAL_StatusTypeDef MAX30003_ReadFifoNormal(uint32_t *samples, uint8_t max_samples)
+{
+    if (max_samples == 0 || max_samples > FIFO_BURST_SIZE) return HAL_ERROR;
+
+    for (uint8_t i = 0; i < max_samples; i++) {
+        uint32_t raw = 0;
+        ECG_CSB_LOW();
+        uint8_t tx[4] = { (uint8_t)((MAX30003_ECG_FIFO << 1) | 0x01), 0x00, 0x00, 0x00 };
+        uint8_t rx[4] = { 0 };
+        HAL_StatusTypeDef st = HAL_SPI_TransmitReceive(&hspi3, tx, rx, 4, 50);
+        ECG_CSB_HIGH();
+        if (st != HAL_OK) return st;
+        raw = ((uint32_t)rx[1] << 16) | ((uint32_t)rx[2] << 8) | rx[3];
+        samples[i] = raw;
     }
     return HAL_OK;
 }
@@ -84,11 +107,11 @@ static HAL_StatusTypeDef MAX30003_SPI_Transfer(const uint8_t *tx, uint8_t *rx, u
     return HAL_OK;
 }
 
-/* 澶栭儴寮曠敤 �?Packagedata_AddEcgSample 寮卞疄鐜?(鍙澶栭儴瑕嗙�? */
+/* 澶栭儴寮曠敤 �?Packagedata_AddEcgSample 寮卞疄鐜?(鍙澶栭儴瑕嗙�? */
 __attribute__((weak)) void Packagedata_AddEcgSample(int16_t ecg)
 {
     (void)ecg;
-    /* 榛樿绌哄疄�? 鐢卞閮ㄦā鍧?(�?edf_storage.c) 瑕嗙�?*/
+    /* 榛樿绌哄疄�? 鐢卞閮ㄦā鍧?(�?edf_storage.c) 瑕嗙�?*/
 }
 
 /* 瀹夊叏寤舵椂锛歰sDelay 涓嶄緷璧?HAL tick锛屽唴鏍歌繍琛屼腑涓撶敤 */
@@ -108,7 +131,7 @@ static MAX30003_LeadStatus_t g_lead_status = {
 };
 
 /**
-  * @brief  CS 寮曡剼鍒濆�?
+  * @brief  CS 寮曡剼鍒濆�?
   */
 void MAX30003_CS_Init(void)
 {
@@ -162,7 +185,7 @@ static int MAX30003_WriteVerify(uint8_t reg, uint32_t expected, const char *name
 }
 
 /**
-  * @brief  SPI 鍐欏瘎瀛樺�?
+  * @brief  SPI 鍐欏瘎瀛樺�?
   */
 HAL_StatusTypeDef MAX30003_WriteReg(uint8_t reg, uint32_t data)
 {
@@ -184,7 +207,7 @@ HAL_StatusTypeDef MAX30003_WriteReg(uint8_t reg, uint32_t data)
 }
 
 /**
-  * @brief  SPI 璇诲瘎瀛樺�?
+  * @brief  SPI 璇诲瘎瀛樺�?
   */
 HAL_StatusTypeDef MAX30003_ReadReg(uint8_t reg, uint32_t *data)
 {
@@ -224,7 +247,7 @@ void MAX30003_Synch(void)
 }
 
 /**
-  * @brief  FIFO 澶嶄�?
+  * @brief  FIFO 澶嶄�?
   */
 void MAX30003_FifoReset(void)
 {
@@ -232,7 +255,7 @@ void MAX30003_FifoReset(void)
 }
 
 /**
-  * @brief  鍒濆鍖?MAX30003 (浠呴厤缃瘎瀛樺�? 涓嶅紑鍚?EINT/EOVF)
+  * @brief  鍒濆鍖?MAX30003 (浠呴厤缃瘎瀛樺�? 涓嶅紑鍚?EINT/EOVF)
   */
 void MAX30003_Init(void)
 {
@@ -250,7 +273,7 @@ void MAX30003_Init(void)
     MAX30003_SwReset();
     SAFE_Delay(20);
 
-    /* 娓呮帀澶嶄綅鍚庣殑�?STATUS */
+    /* 娓呮帀澶嶄綅鍚庣殑�?STATUS */
     APP_USB_LOG("[MAX30003_INIT] step=status1\r\n");
     MAX30003_ReadReg(MAX30003_STATUS, &dummy);
     SAFE_Delay(2);
@@ -270,13 +293,22 @@ void MAX30003_Init(void)
     APP_USB_LOG("[MAX30003] INFO=0x%06lX\r\n", info1);
 #endif
 
-    /* CNFG_ECG: 鍏堥厤濂介噰鏍风�?澧炵�?婊ゆ尝锛屽啀寮€ CNFG_GEN */
+    /* CNFG_ECG: 鍏堥厤濂介噰鏍风�?澧炵�?婊ゆ尝锛屽啀寮€ CNFG_GEN */
     APP_USB_LOG("[MAX30003_INIT] step=cnfg_ecg\r\n");
+
+#if RECORD_TEST_ECG_RATE_SELECT == 1
+    uint32_t _cnfg_ecg = MAX30003_CNFG_ECG_256SPS;
+#elif RECORD_TEST_ECG_RATE_SELECT == 2
+    uint32_t _cnfg_ecg = MAX30003_CNFG_ECG_128SPS;
+#else
+    uint32_t _cnfg_ecg = MAX30003_CNFG_ECG_NORMAL;
+#endif
+
     if (!MAX30003_WriteVerify(MAX30003_CNFG_ECG,
-                              MAX30003_CNFG_ECG_NORMAL,
+                              _cnfg_ecg,
                               "CNFG_ECG")) return;
 
-    /* CNFG_GEN: 涓€娆℃€у啓�?EN_ECG + EN_RBIAS + DCLOFF (0x081217) */
+    /* CNFG_GEN: 涓€娆℃€у啓�?EN_ECG + EN_RBIAS + DCLOFF (0x081217) */
     APP_USB_LOG("[MAX30003_INIT] step=cnfg_gen\r\n");
     if (!MAX30003_WriteVerify(MAX30003_CNFG_GEN,
                               MAX30003_CNFG_GEN_NORMAL,
@@ -302,7 +334,7 @@ void MAX30003_Init(void)
                               "CNFG_EMUX")) return;
 #endif
 
-    /* Auto Fast Recovery: 鍙岀數鏋佽繍鍔ㄥ満鏅揩閫熸仮�?*/
+    /* Auto Fast Recovery: 鍙岀數鏋佽繍鍔ㄥ満鏅揩閫熸仮�?*/
     APP_USB_LOG("[MAX30003_INIT] step=mngr_dyn%s\r\n",
                 MAX30003_INIT_SKIP_MNGR_DYN ? "_skip" : "");
 #if MAX30003_INIT_SKIP_MNGR_DYN
@@ -315,7 +347,7 @@ void MAX30003_Init(void)
                               "MNGR_DYN")) return;
 #endif
 
-    /* 绛夊�?PLL 閿佸�?*/
+    /* 绛夊�?PLL 閿佸�?*/
     APP_USB_LOG("[MAX30003_INIT] step=pll_wait\r\n");
     uint8_t retry = 50;
     while(retry--) {
@@ -329,13 +361,13 @@ void MAX30003_Init(void)
                               MAX30003_EN_INT_IDLE,
                               "EN_INT")) return;
 
-    /* EFIT=4锛岀�?5 涓牱鏈Е鍙戜竴娆′腑�?*/
+    /* EFIT=4锛岀�?5 涓牱鏈Е鍙戜竴娆′腑�?*/
     APP_USB_LOG("[MAX30003_INIT] step=mngr_int\r\n");
     if (!MAX30003_WriteVerify(MAX30003_MNGR_INT,
                               MAX30003_MNGR_INT_FAST,
                               "MNGR_INT")) return;
 
-    /* �?FIFO 骞跺悓姝?*/
+    /* �?FIFO 骞跺悓姝?*/
     MAX30003_FifoReset();
     MAX30003_Synch();
 
@@ -344,12 +376,12 @@ void MAX30003_Init(void)
     APP_USB_LOG("[MAX30003] Init done. STATUS=0x%06lX\r\n", dummy);
 #endif
 
-    /* SD 鍐欏叆璇婃柇闃舵涓嶈鍦ㄤ紶鎰熷櫒鍒濆鍖栭噷�?FatFS�?
-     * 鏁版嵁鏂囦欢鎵撳紑鍓嶇殑鏃╂�?SD 璁块棶浼氬共鎵板垽鏂紝瀵勫瓨鍣ㄥ揩鐓у悗缁斁鍒板綍鍒舵棩蹇楅噷鍋氥�?*/
+    /* SD 鍐欏叆璇婃柇闃舵涓嶈鍦ㄤ紶鎰熷櫒鍒濆鍖栭噷�?FatFS�?
+     * 鏁版嵁鏂囦欢鎵撳紑鍓嶇殑鏃╂�?SD 璁块棶浼氬共鎵板垽鏂紝瀵勫瓨鍣ㄥ揩鐓у悗缁斁鍒板綍鍒舵棩蹇楅噷鍋氥�?*/
 }
 
 /**
-  * @brief  鍚�?ECG 閲囬泦娴?�?寮€濮嬪墠閲嶇疆 FIFO/SYNCH/STATUS
+  * @brief  鍚�?ECG 閲囬泦娴?�?寮€濮嬪墠閲嶇疆 FIFO/SYNCH/STATUS
   */
 void MAX30003_StartStream(void)
 {
@@ -359,18 +391,18 @@ void MAX30003_StartStream(void)
 
     g_max30003_start_step = 10;
 
-    /* 鍏堝叧闂�?ECG 涓柇锛岄伩鍏嶆�?FIFO/SYNCH 鏈熼棿瑙﹀彂浠诲姟閫氱�?*/
+    /* 鍏堝叧闂�?ECG 涓柇锛岄伩鍏嶆�?FIFO/SYNCH 鏈熼棿瑙﹀彂浠诲姟閫氱�?*/
     g_max30003_start_step = 20;
     (void)MAX30003_WriteReg(MAX30003_EN_INT, MAX30003_EN_INT_IDLE);
 
-    /* 鍏抽�? 鐪熸寮€濮嬭褰曞墠閲嶆柊 FIFO_RST + SYNCH锛屾竻闄?Init鈫扴tart 涔嬮棿鐨勬棫鏁版�?*/
+    /* 鍏抽�? 鐪熸寮€濮嬭褰曞墠閲嶆柊 FIFO_RST + SYNCH锛屾竻闄?Init鈫扴tart 涔嬮棿鐨勬棫鏁版�?*/
     g_max30003_start_step = 30;
     APP_USB_LOG("[MAX30003_INIT] step=fifo_synch\r\n");
     MAX30003_FifoReset();
     g_max30003_start_step = 40;
     MAX30003_Synch();
 
-    /* 杩炵画璇讳袱�?STATUS 娓呮帀鏃х殑 sticky flags */
+    /* 杩炵画璇讳袱�?STATUS 娓呮帀鏃х殑 sticky flags */
     g_max30003_start_step = 50;
     (void)MAX30003_ReadReg(MAX30003_STATUS, &status1);
     g_max30003_start_status1 = status1;
@@ -378,7 +410,7 @@ void MAX30003_StartStream(void)
     (void)MAX30003_ReadReg(MAX30003_STATUS, &status2);
     g_max30003_start_status2 = status2;
 
-    /* 鎵撳紑姝ｅ父 ECG 涓�?*/
+    /* 鎵撳紑姝ｅ父 ECG 涓�?*/
     g_max30003_start_step = 70;
     if (MAX30003_WriteReg(MAX30003_EN_INT, MAX30003_EN_INT_NORMAL) != HAL_OK) {
         g_max30003_start_step = 71;
@@ -401,7 +433,7 @@ void MAX30003_StartStream(void)
 }
 
 /**
-  * @brief  鍋滄�?ECG 閲囬泦娴?�?鍏抽棴涓柇骞舵�?FIFO
+  * @brief  鍋滄�?ECG 閲囬泦娴?�?鍏抽棴涓柇骞舵�?FIFO
   */
 void MAX30003_StopStream(void)
 {
@@ -409,7 +441,7 @@ void MAX30003_StopStream(void)
 
     (void)MAX30003_WriteReg(MAX30003_EN_INT, MAX30003_EN_INT_IDLE);
 
-    /* �?FIFO + SYNCH锛岄伩鍏嶄笅涓€�?Start 甯﹀叆鏃ф牱鏈?*/
+    /* �?FIFO + SYNCH锛岄伩鍏嶄笅涓€�?Start 甯﹀叆鏃ф牱鏈?*/
     MAX30003_FifoReset();
     MAX30003_Synch();
 
@@ -420,13 +452,13 @@ void MAX30003_StopStream(void)
 }
 
 /**
-  * @brief  �?18�?ECG 鏁版嵁杞崲�?int16_t
+  * @brief  �?18�?ECG 鏁版嵁杞崲�?int16_t
   */
 int16_t MAX30003_ConvertData(uint32_t raw_data)
 {
     int32_t val;
 
-    // 鎻愬�?18 �?ECG 鏁版�?(D[23:6])
+    // 鎻愬�?18 �?ECG 鏁版�?(D[23:6])
     val = (raw_data >> 6) & 0x3FFFF;
 
     // 绗﹀彿鎵╁睍 (18-bit signed to 32-bit)
@@ -435,11 +467,11 @@ int16_t MAX30003_ConvertData(uint32_t raw_data)
         val |= 0xFFFC0000;
     }
 
-    // 鍙崇Щ 2 浣嶄互閫傚簲 int16_t 鑼冨�?(18-bit -> 16-bit)
-    // 娉ㄦ�? MAX30003 �?ENOB �?15.5 浣嶏紝鎵€浠ヤ涪寮冩渶浣?2 浣嶅垰濂借兘瀹岀編瑁呭叆 int16_t锛屽悓鏃舵护闄ゅ浣欏簳鍣�?
+    // 鍙崇Щ 2 浣嶄互閫傚簲 int16_t 鑼冨�?(18-bit -> 16-bit)
+    // 娉ㄦ�? MAX30003 �?ENOB �?15.5 浣嶏紝鎵€浠ヤ涪寮冩渶浣?2 浣嶅垰濂借兘瀹岀編瑁呭叆 int16_t锛屽悓鏃舵护闄ゅ浣欏簳鍣�?
     val >>= 2;
 
-    // 楗卞拰澶勭悊锛岄槻姝㈡孩�?
+    // 楗卞拰澶勭悊锛岄槻姝㈡孩�?
     if (val > 32767) val = 32767;
     if (val < -32768) val = -32768;
 
@@ -447,13 +479,13 @@ int16_t MAX30003_ConvertData(uint32_t raw_data)
 }
 
 /**
-  * @brief  Burst 妯″紡璇诲�?FIFO
+  * @brief  Burst 妯″紡璇诲�?FIFO
   */
 static HAL_StatusTypeDef MAX30003_ReadFifoBurst(uint32_t *samples, uint8_t max_samples)
 {
     if (max_samples == 0 || max_samples > FIFO_BURST_SIZE) return HAL_ERROR;
 
-    // 1瀛楄妭鍛戒护 + 姣忔牱鏈?瀛楄�?
+    // 1瀛楄妭鍛戒护 + 姣忔牱鏈?瀛楄�?
     uint16_t total = 1 + max_samples * 3; 
     uint8_t tx[1 + FIFO_BURST_SIZE * 3] = {0};
     uint8_t rx[1 + FIFO_BURST_SIZE * 3] = {0};
@@ -475,7 +507,7 @@ static HAL_StatusTypeDef MAX30003_ReadFifoBurst(uint32_t *samples, uint8_t max_s
 }
 
 /**
-  * @brief  鏇存�?STATUS 鐩稿叧缁熻 (PLL seen / edge / last_status)
+  * @brief  鏇存�?STATUS 鐩稿叧缁熻 (PLL seen / edge / last_status)
   */
 static void MAX30003_UpdateStatusStats(uint32_t status_reg)
 {
@@ -485,7 +517,7 @@ static void MAX30003_UpdateStatusStats(uint32_t status_reg)
         g_ecg_rec.pll_status_seen_count++;
         g_ecg_rec.pll_warn_count = g_ecg_rec.pll_status_seen_count;
 
-        /* 杈规部妫€娴? 鍙湁浠?0�? 鎵嶅�?edge count */
+        /* 杈规部妫€娴? 鍙湁浠?0�? 鎵嶅�?edge count */
         if (!g_ecg_rec.pll_current_set) {
             g_ecg_rec.pll_edge_count++;
             g_ecg_rec.pll_current_set = 1;
@@ -496,8 +528,8 @@ static void MAX30003_UpdateStatusStats(uint32_t status_reg)
 }
 
 /**
-  * @brief  鎻愬彇骞跺�?MAX30003 FIFO 鏁版�?(drain loop, 鏈€�?4 �?
-  * @note   Burst �?FIFO锛屼竴娆?32 word锛涢伩鍏嶅湪閲囨牱璺緞閲岃皟鐢ㄩ樆�?鎵撳嵃鍑芥暟�?
+  * @brief  鎻愬彇骞跺�?MAX30003 FIFO 鏁版�?(drain loop, 鏈€�?4 �?
+  * @note   Burst �?FIFO锛屼竴娆?32 word锛涢伩鍏嶅湪閲囨牱璺緞閲岃皟鐢ㄩ樆�?鎵撳嵃鍑芥暟�?
   */
 void MAX30003_Task(void)
 {
@@ -517,7 +549,20 @@ void MAX30003_Task(void)
                 g_ecg_rec.diag_max_gap_ms = _gap;
             }
         }
-        g_ecg_rec.diag_last_call_tick = _now;
+                g_ecg_rec.diag_last_call_tick = _now;
+        /* Recording-specific gap tracking */
+        {
+            extern volatile uint8_t ecg_streaming;
+            if (ecg_streaming && g_ecg_rec.state == ECG_REC_RECORDING) {
+                if (g_ecg_rec.diag_last_recording_tick != 0U) {
+                    uint32_t _rgap = _now - g_ecg_rec.diag_last_recording_tick;
+                    if (_rgap > g_ecg_rec.diag_max_gap_recording_ms) {
+                        g_ecg_rec.diag_max_gap_recording_ms = _rgap;
+                    }
+                }
+                g_ecg_rec.diag_last_recording_tick = _now;
+            }
+        }
     }
 
     uint8_t drain;
@@ -533,7 +578,7 @@ void MAX30003_Task(void)
         MAX30003_UpdateStatusStats(status_reg);
         MAX30003_UpdateLeadStatus(status_reg);
 
-        /* 澶勭�?FIFO overflow */
+        /* 澶勭�?FIFO overflow */
         if (status_reg & MAX30003_STATUS_EOVF) {
             g_ecg_rec.fifo_eovf_count++;
             MAX30003_FifoReset();
@@ -545,8 +590,8 @@ void MAX30003_Task(void)
             return;
         }
 
-        /* �?EINT 鏃朵粛杞婚噺鎺㈡�?1 �?FIFO word�?
-         * 鏈変簺璋冭瘯闃舵�?EINT/INTB 涓嶇ǔ瀹氾紝浣?FIFO 閲屽彲鑳藉凡鏈夋牱鏈€?*/
+        /* �?EINT 鏃朵粛杞婚噺鎺㈡�?1 �?FIFO word�?
+         * 鏈変簺璋冭瘯闃舵�?EINT/INTB 涓嶇ǔ瀹氾紝浣?FIFO 閲屽彲鑳藉凡鏈夋牱鏈€?*/
         if ((status_reg & MAX30003_STATUS_EINT) != 0) {
             g_ecg_rec.diag_eint_hits++;
             g_ecg_rec.diag_status_eint_total++;
@@ -555,8 +600,32 @@ void MAX30003_Task(void)
             g_ecg_rec.diag_status_eovf_total++;
         }
 
+#if RECORD_TEST_ECG_STATUS_ONLY
+          /* C3: STATUS-only, no FIFO read */
+          g_ecg_rec.fifo_sample_count = g_ecg_rec.diag_status_eovf_total;
+          return;
+#endif
         uint32_t fifo_words[FIFO_BURST_SIZE];
         g_ecg_rec.max30003_spi_burst_count++;
+#if RECORD_TEST_ECG_FIFO_NORMAL_READ
+        {
+            /* C4: Normal single-word FIFO read */
+            uint32_t _t0n = HAL_GetTick();
+            HAL_StatusTypeDef _nr = MAX30003_ReadFifoNormal(fifo_words, words_to_read);
+            uint32_t _dtn = HAL_GetTick() - _t0n;
+            if (_dtn > 0) {
+                g_ecg_rec.max30003_burst_us_last = _dtn * 1000;
+                if (_dtn * 1000 > g_ecg_rec.max30003_burst_us_max)
+                    g_ecg_rec.max30003_burst_us_max = _dtn * 1000;
+                g_ecg_rec.max30003_burst_us_sum += _dtn * 1000;
+                g_ecg_rec.max30003_burst_us_count++;
+            }
+            if (_nr != HAL_OK) {
+                g_ecg_rec.max30003_burst_read_error_count++;
+                return;
+            }
+        }
+#else
         {
             uint32_t _t0 = HAL_GetTick();
             HAL_StatusTypeDef _br = MAX30003_ReadFifoBurst(fifo_words, words_to_read);
@@ -573,7 +642,7 @@ void MAX30003_Task(void)
                 return;
             }
         }
-
+#endif
         for (uint8_t i = 0; i < words_to_read; i++) {
             uint32_t raw_data = fifo_words[i];
 
