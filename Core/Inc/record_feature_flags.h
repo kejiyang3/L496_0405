@@ -56,7 +56,7 @@
 #define RECORD_DIAG_RUN_INTERVAL_MS 1000U  /* SD diag log interval */
 #define RECORD_TEST_ECG_COUNT_ONLY 0       /* P-SW-B off */
 #define RECORD_TEST_ECG_FIFO_ONLY 0        /* P-SW-C off */
-#define RECORD_TEST_ECG_STATUS_ONLY 1  /* chip-level validation: STATUS-only */
+#define RECORD_TEST_ECG_STATUS_ONLY 0  /* chip-level validation: STATUS-only */
 #define RECORD_TEST_ECG_DIAG_ENABLE 1      /* master diag switch */
 #define RECORD_ECG_TASK_PRIORITY_BOOST 0   /* P-SW-D: 0=normal, 1=boosted */
 
@@ -69,7 +69,7 @@
 
 
 /* === V3: Lead-off / Fast Recovery test === */
-#define RECORD_TEST_MAX30003_NO_DCLOFF  0  /* 1=disable DC lead-off in CNFG_GEN */
+#define RECORD_TEST_MAX30003_NO_DCLOFF  1  /* OLD CODE: no DCLOFF */  /* 1=disable DC lead-off in CNFG_GEN */
 #define RECORD_TEST_MAX30003_NO_FASTREC 0  /* 1=disable Fast Recovery in MNGR_DYN */
 
 /* === V4: FMSTR test === */
@@ -101,18 +101,10 @@
 /* P4: disable ALL SD writes, RAM counting only */
 #define RECORD_DIAG_DISABLE_ALL_SD_WRITES 0
 
+
+/* === P2: Disable PA8 FCLK MCO (test MAX30003 internal RC fallback) === */
+#define RECORD_TEST_P2_DISABLE_FCLK_MCO 0
+
 #endif
-
-
-
-
-
-
-
-
-
-
-
-
 
 

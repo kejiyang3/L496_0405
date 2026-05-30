@@ -1,4 +1,4 @@
-﻿#include "multi_sensor_logger.h"
+#include "multi_sensor_logger.h"
 #include "ecg_record_control.h"
 #include "sd_debug_log.h"
 #include "fatfs.h"
@@ -413,6 +413,33 @@ static void write_ecg_block(FIL *fp, uint8_t idx)
     char chunk[512];
     UINT used = 0;
     uint16_t chunk_records = 0;
+
+    if (blk->count > 0) {
+        char blkhdr[48];
+        int hn = snprintf(blkhdr, sizeof(blkhdr),
+            "BLOCK,%lu,%lu,%u\r\n",
+            (unsigned long)blk->timestamp_ms[0],
+            (unsigned long)blk->timestamp_ms[blk->count - 1],
+            (unsigned)blk->count);
+        if (hn > 0 && hn < (int)sizeof(blkhdr)) {
+            UINT hbw;
+            f_write(fp, blkhdr, (UINT)hn, &hbw);
+        }
+    }
+
+    /* BLOCK header: tick_start_ms, tick_end_ms, sample_count */
+    if (blk->count > 0) {
+        char blkhdr[48];
+        int hn = snprintf(blkhdr, sizeof(blkhdr),
+            "BLOCK,%lu,%lu,%u\r\n",
+            (unsigned long)blk->timestamp_ms[0],
+            (unsigned long)blk->timestamp_ms[blk->count - 1],
+            (unsigned)blk->count);
+        if (hn > 0 && hn < (int)sizeof(blkhdr)) {
+            UINT hbw;
+            f_write(fp, blkhdr, (UINT)hn, &hbw);
+        }
+    }
 
     for (uint16_t i = 0; i < blk->count; i++) {
         int n = snprintf(line, sizeof(line),

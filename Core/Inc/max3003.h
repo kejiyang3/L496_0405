@@ -110,6 +110,10 @@ extern "C" {
 #define CNFG_GEN_FMSTR_8K          (2UL << 20)
 #define CNFG_GEN_FMSTR_4K          (3UL << 20)
 
+#define MAX30003_CNFG_GEN_FMSTR16K_NODCLOFF (CNFG_GEN_EN_ECG | CNFG_GEN_FMSTR_16K | \\
+                                           CNFG_GEN_EN_RBIAS_EN | CNFG_GEN_RBIASV_100M | \\
+                                           CNFG_GEN_RBIASP_EN | CNFG_GEN_RBIASN_EN)
+
 #define MAX30003_CNFG_GEN_FMSTR16K (CNFG_GEN_EN_ECG | CNFG_GEN_FMSTR_16K | \
                                     CNFG_GEN_EN_DCLOFF_ECGPN | CNFG_GEN_DCLOFF_IMAG_10NA | \
                                     CNFG_GEN_DCLOFF_VTH_300MV | \

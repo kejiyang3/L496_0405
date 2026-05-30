@@ -12,6 +12,7 @@
 #include "audio_wav_format.h"
 #include "sd_debug_log.h"
 #include "record_feature_flags.h"
+#include "session_manager.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -37,6 +38,9 @@ static uint32_t s_audio_dma_buf[AUDIO_DMA_WORDS];
 
 static TaskHandle_t s_audio_task_handle = NULL;
 static FIL s_audio_file;
+static FIL s_audio_blocks_file;
+static uint8_t s_audio_blocks_open = 0;
+static uint32_t s_audio_blocks_seq = 0;
 static uint8_t s_audio_file_open = 0;
 static volatile uint8_t s_audio_recording_active = 0;
 static uint32_t s_audio_bytes = 0;
@@ -241,6 +245,10 @@ static uint8_t audio_open_file(uint32_t seq)
         }
     }
     res = f_open(&s_audio_file, path, FA_CREATE_ALWAYS | FA_WRITE);
+    { char abp[64]; snprintf(abp,sizeof(abp),"%s/audio_blocks.csv",g_session.session_dir);
+      if(f_open(&s_audio_blocks_file,abp,FA_CREATE_ALWAYS|FA_WRITE)==FR_OK){
+        const char *ah="tick_ms,byte_offset,byte_count,block_index\r\n"; UINT aw;
+        f_write(&s_audio_blocks_file,ah,(UINT)strlen(ah),&aw); s_audio_blocks_open=1; } }
     bw = 0;
     if (Mtx_SDCardHandle != NULL) {
         osMutexRelease(Mtx_SDCardHandle);
@@ -327,7 +335,7 @@ static void audio_close_file(void)
             return;
         }
     }
-    close_res = f_close(&s_audio_file);
+    close_res = f_close(&s_audio_file); if(s_audio_blocks_open){f_close(&s_audio_blocks_file);s_audio_blocks_open=0;}
 #else
     build_wav_header(hdr, s_audio_bytes, AudioRecorder_GetEffectiveSampleRateHz());
 
@@ -349,7 +357,7 @@ static void audio_close_file(void)
 #else
     sync_res = f_sync(&s_audio_file);
 #endif
-    close_res = f_close(&s_audio_file);
+    close_res = f_close(&s_audio_file); if(s_audio_blocks_open){f_close(&s_audio_blocks_file);s_audio_blocks_open=0;}
 #endif
 
     if (Mtx_SDCardHandle != NULL) {
@@ -425,11 +433,13 @@ static uint8_t audio_write_half(uint32_t *src, uint32_t words)
         if (p3_agg_count >= 2U) {
             p3_agg_count = 0;
             res = audio_write_locked(s_pcm_half, out_samples * sizeof(int16_t));
+            if(s_audio_blocks_open){char al[64];int an=snprintf(al,sizeof(al),"%lu,%lu,%u,%lu\r\n",(unsigned long)HAL_GetTick(),(unsigned long)s_audio_bytes,(unsigned)(out_samples*sizeof(int16_t)),(unsigned long)s_audio_blocks_seq++);if(an>0){UINT aw;f_write(&s_audio_blocks_file,al,(UINT)an,&aw);}}
         } else {
             res = FR_OK;  /* skip write, pretend success */
         }
 #else
         res = audio_write_locked(s_pcm_half, out_samples * sizeof(int16_t));
+            if(s_audio_blocks_open){char al[64];int an=snprintf(al,sizeof(al),"%lu,%lu,%u,%lu\r\n",(unsigned long)HAL_GetTick(),(unsigned long)s_audio_bytes,(unsigned)(out_samples*sizeof(int16_t)),(unsigned long)s_audio_blocks_seq++);if(an>0){UINT aw;f_write(&s_audio_blocks_file,al,(UINT)an,&aw);}}
 #endif
         if (res != FR_OK) {
             g_ecg_rec.mic_write_errors++;

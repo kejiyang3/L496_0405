@@ -592,6 +592,17 @@ void MAX30003_Task(void)
         }
 
         MAX30003_UpdateStatusStats(status_reg);
+        /* P1: re-read STATUS to check if PLLINT is latch or live */
+        {
+            uint32_t pll_recheck = 0;
+            if (MAX30003_ReadReg(MAX30003_STATUS, &pll_recheck) == HAL_OK) {
+                if (pll_recheck & MAX30003_STATUS_PLLINT) {
+                    g_ecg_rec.pll_recheck_still_set++;
+                } else {
+                    g_ecg_rec.pll_recheck_cleared++;
+                }
+            }
+        }
         MAX30003_UpdateLeadStatus(status_reg);
 
         /* 澶勭�?FIFO overflow */

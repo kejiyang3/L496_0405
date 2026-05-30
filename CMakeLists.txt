@@ -91,6 +91,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/Core/Src/icm20948.c
     ${CMAKE_SOURCE_DIR}/Core/Src/multi_sensor_logger.c
     ${CMAKE_SOURCE_DIR}/Core/Src/ecg_record_control.c
+    ${CMAKE_SOURCE_DIR}/Core/Src/session_manager.c
     ${CMAKE_SOURCE_DIR}/Core/Src/audio_recorder.c
     ${CMAKE_SOURCE_DIR}/Core/Src/sd_sensor_logger.c
     ${CMAKE_SOURCE_DIR}/Core/Src/sd_debug_log.c

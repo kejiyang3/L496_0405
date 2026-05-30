@@ -64,6 +64,8 @@ typedef struct {
     volatile uint32_t pll_status_seen_count;
     volatile uint32_t pll_edge_count;
     volatile uint8_t  pll_current_set;
+    volatile uint32_t pll_recheck_still_set;
+    volatile uint32_t pll_recheck_cleared;
     volatile uint32_t fifo_sample_count;
     volatile uint32_t fifo_valid_count;
     volatile uint32_t fifo_fast_count;

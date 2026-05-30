@@ -51,12 +51,12 @@ volatile uint8_t touch_int_flag = 0;
 volatile uint32_t touch_irq_count = 0;
 extern DMA_HandleTypeDef hdma_usart1_rx;  /* Defined in usart.c for USART1 RX DMA */
 
-volatile uint8_t ecg_streaming = 0;             /* ECG流使能标志 */
+volatile uint8_t ecg_streaming = 0;             /* ECG流使能标�?*/
 volatile uint32_t ecg_irq_count = 0;             /* ECG INTB 中断计数 */
 volatile uint32_t icm_irq_count = 0;             /* ICM INT1 中断计数 */
 volatile uint32_t ppg_irq_count = 0;             /* PPG A_FULL 中断计数 */
 
-/* EcgTask handle (定义在 freertos.c) — 用于ISR→Task直接通知 */
+/* EcgTask handle (定义�?freertos.c) �?用于ISR→Task直接通知 */
 extern TaskHandle_t EcgTaskHandle;
 extern TaskHandle_t PpgTaskHandle;
 extern TaskHandle_t ImuTaskHandle;
@@ -74,11 +74,11 @@ void MX_FREERTOS_Init(void);
 
 #if ICM_INT_LINE_PULLDOWN_TEST_ENABLE
 /**
-  * @brief  ICM_INT 线路拉低测试 — 先通过 I2C3 释放 ICM20948 INT1，再测线路
-  * @note   1. I2C3 访问 ICM20948，禁用所有中断，清除锁存状态，软复位
-  *         2. 重配 PH1 为开漏输出
+  * @brief  ICM_INT 线路拉低测试 �?先通过 I2C3 释放 ICM20948 INT1，再测线�?
+  * @note   1. I2C3 访问 ICM20948，禁用所有中断，清除锁存状态，软复�?
+  *         2. 重配 PH1 为开漏输�?
   *         3. 循环 3s LOW / 3s RELEASE
-  *         阻塞式运行，在 MX_I2C3_Init() 后进入。
+  *         阻塞式运行，�?MX_I2C3_Init() 后进入�?
   */
 static void ICM_INT_Line_Pulldown_Test_With_ICM_Release(void)
 {
@@ -91,35 +91,35 @@ static void ICM_INT_Line_Pulldown_Test_With_ICM_Release(void)
     /* === 阶段 1: 通过 I2C3 释放 ICM20948 INT1 === */
     addr8 = (uint8_t)(ICM20948_ADDR << 1);
 
-    /* 选 Bank 0 */
+    /* �?Bank 0 */
     val = 0x00;
     HAL_I2C_Mem_Write(&hi2c3, addr8, REG_BANK_SEL,
                       I2C_MEMADD_SIZE_8BIT, &val, 1, 100);
 
-    /* 读 WHO_AM_I 确认 ICM 可达 */
+    /* �?WHO_AM_I 确认 ICM 可达 */
     s = HAL_I2C_Mem_Read(&hi2c3, addr8, REG_WHO_AM_I,
                          I2C_MEMADD_SIZE_8BIT, &val, 1, 100);
 
     if (s == HAL_OK && val == 0xEA) {
-        /* a. 禁用所有中断使能 */
+        /* a. 禁用所有中断使�?*/
         val = 0x00;
         HAL_I2C_Mem_Write(&hi2c3, addr8, 0x10, I2C_MEMADD_SIZE_8BIT, &val, 1, 100); // INT_ENABLE
         HAL_I2C_Mem_Write(&hi2c3, addr8, 0x11, I2C_MEMADD_SIZE_8BIT, &val, 1, 100); // INT_ENABLE_1
         HAL_I2C_Mem_Write(&hi2c3, addr8, 0x12, I2C_MEMADD_SIZE_8BIT, &val, 1, 100); // INT_ENABLE_2
         HAL_I2C_Mem_Write(&hi2c3, addr8, 0x13, I2C_MEMADD_SIZE_8BIT, &val, 1, 100); // INT_ENABLE_3
 
-        /* b. 读全部 INT_STATUS 清除锁存中断 */
+        /* b. 读全�?INT_STATUS 清除锁存中断 */
         HAL_I2C_Mem_Read(&hi2c3, addr8, 0x19, I2C_MEMADD_SIZE_8BIT, &val, 1, 100);
         HAL_I2C_Mem_Read(&hi2c3, addr8, 0x1A, I2C_MEMADD_SIZE_8BIT, &val, 1, 100);
         HAL_I2C_Mem_Read(&hi2c3, addr8, 0x1B, I2C_MEMADD_SIZE_8BIT, &val, 1, 100);
         HAL_I2C_Mem_Read(&hi2c3, addr8, 0x1C, I2C_MEMADD_SIZE_8BIT, &val, 1, 100);
 
-        /* c. INT_PIN_CFG = 0x00，释放 INT1 引脚控制 */
+        /* c. INT_PIN_CFG = 0x00，释�?INT1 引脚控制 */
         val = 0x00;
         HAL_I2C_Mem_Write(&hi2c3, addr8, REG_INT_PIN_CFG,
                           I2C_MEMADD_SIZE_8BIT, &val, 1, 100);
 
-        /* d. 软件复位 ICM，清除所有内部状态 */
+        /* d. 软件复位 ICM，清除所有内部状�?*/
         val = 0x80;
         HAL_I2C_Mem_Write(&hi2c3, addr8, REG_PWR_MGMT_1,
                           I2C_MEMADD_SIZE_8BIT, &val, 1, 100);
@@ -132,13 +132,13 @@ static void ICM_INT_Line_Pulldown_Test_With_ICM_Release(void)
     /* ICM 释放后延时，确保 INT1 线路稳定 */
     HAL_Delay(100);
 
-    /* === 阶段 2: 重配 PH1 为开漏输出，开始线路测试 === */
+    /* === 阶段 2: 重配 PH1 为开漏输出，开始线路测�?=== */
 
     /* 禁用 EXTI1，清 pending */
     HAL_NVIC_DisableIRQ(EXTI1_IRQn);
     __HAL_GPIO_EXTI_CLEAR_IT(ICM_INT_Pin);
 
-    /* 重配 PH1 = 开漏输出 + 上拉 */
+    /* 重配 PH1 = 开漏输�?+ 上拉 */
     HAL_GPIO_DeInit(ICM_INT_GPIO_Port, ICM_INT_Pin);
 
     GPIO_InitStruct.Pin   = ICM_INT_Pin;
@@ -147,11 +147,11 @@ static void ICM_INT_Line_Pulldown_Test_With_ICM_Release(void)
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
     HAL_GPIO_Init(ICM_INT_GPIO_Port, &GPIO_InitStruct);
 
-    /* 初始释放为高阻 */
+    /* 初始释放为高�?*/
     HAL_GPIO_WritePin(ICM_INT_GPIO_Port, ICM_INT_Pin, GPIO_PIN_SET);
     HAL_Delay(1000);
 
-    /* 循环: LOW 3s → RELEASE 3s */
+    /* 循环: LOW 3s �?RELEASE 3s */
     while (1) {
         HAL_GPIO_WritePin(ICM_INT_GPIO_Port, ICM_INT_Pin, GPIO_PIN_RESET);
         HAL_Delay(3000);
@@ -174,7 +174,9 @@ static void ECG_FCLK_MCO_ForceInit(void)
     GPIO_InitStruct.Alternate = GPIO_AF0_MCO;
     HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-    HAL_RCC_MCOConfig(RCC_MCO1, RCC_MCO1SOURCE_LSE, RCC_MCODIV_1);
+  #if !RECORD_TEST_P2_DISABLE_FCLK_MCO
+  HAL_RCC_MCOConfig(RCC_MCO1, RCC_MCO1SOURCE_LSE, RCC_MCODIV_1);
+#endif
 }
 /* USER CODE END 0 */
 
@@ -222,7 +224,10 @@ int main(void)
   MX_SPI3_Init();
   MX_SPI1_Init();
   /* USER CODE BEGIN 2 */
+  /* P2: disable PA8 FCLK MCO to test MAX30003 internal RC fallback */
+#if !RECORD_TEST_P2_DISABLE_FCLK_MCO
   ECG_FCLK_MCO_ForceInit();
+#endif
 
   MX_USB_DEVICE_Init();
   /* USER CODE END 2 */
@@ -303,7 +308,9 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
+#if !RECORD_TEST_P2_DISABLE_FCLK_MCO
   HAL_RCC_MCOConfig(RCC_MCO1, RCC_MCO1SOURCE_LSE, RCC_MCODIV_1);
+#endif
 
   /** Enable MSI Auto calibration
   */
@@ -350,7 +357,7 @@ void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
   if (huart->Instance == USART1) {
     ble_rx_len = Size;
     ble_rx_flag = 1;
-    /* 可选：如果你用了 OS Semaphore 通知 Task_BLE 解析，在这里 osSemaphoreRelease */
+    /* 可选：如果你用�?OS Semaphore 通知 Task_BLE 解析，在这里 osSemaphoreRelease */
 
     /* 重新启动接收 */
     HAL_UARTEx_ReceiveToIdle_DMA(&huart1, ble_rx_buf, BLE_RX_BUF_SIZE);
@@ -376,7 +383,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
   }
   else if (GPIO_Pin == PPG_INT_Pin) {
     ppg_irq_count++;
-    /* 在 ISR 中无法安全调用 Safe_USB_Printf (阻塞)，加该宏确认下降沿通过 TXS */
+    /* �?ISR 中无法安全调�?Safe_USB_Printf (阻塞)，加该宏确认下降沿通过 TXS */
     if (PpgTaskHandle != NULL) {
       vTaskNotifyGiveFromISR(PpgTaskHandle, &xHigherPriorityTaskWoken);
     }
