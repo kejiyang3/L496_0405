@@ -95,6 +95,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/Core/Src/audio_recorder.c
     ${CMAKE_SOURCE_DIR}/Core/Src/sd_sensor_logger.c
     ${CMAKE_SOURCE_DIR}/Core/Src/sd_debug_log.c
+    ${CMAKE_SOURCE_DIR}/Core/Src/ble_state_machine.c
     ${CMAKE_SOURCE_DIR}/App/LVGL/app_lvgl.c
     ${CMAKE_SOURCE_DIR}/App/LVGL/lv_port_disp.c
     ${CMAKE_SOURCE_DIR}/App/LVGL/lv_port_indev.c
