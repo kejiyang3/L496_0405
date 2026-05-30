@@ -311,7 +311,15 @@ void MAX30003_Init(void)
     /* CNFG_GEN: 涓€娆℃€у啓�?EN_ECG + EN_RBIAS + DCLOFF (0x081217) */
     APP_USB_LOG("[MAX30003_INIT] step=cnfg_gen\r\n");
     if (!MAX30003_WriteVerify(MAX30003_CNFG_GEN,
+                              #if RECORD_TEST_MAX30003_NO_DCLOFF
+                              MAX30003_CNFG_GEN_NODCLOFF,
+#elif RECORD_TEST_MAX30003_FMSTR == 1
+                              MAX30003_CNFG_GEN_FMSTR16K,
+#elif RECORD_TEST_MAX30003_FMSTR == 2
+                              MAX30003_CNFG_GEN_FMSTR8K,
+#else
                               MAX30003_CNFG_GEN_NORMAL,
+#endif
                               "CNFG_GEN")) return;
 
 #if MAX30003_USE_INTERNAL_CAL_TEST
@@ -343,7 +351,11 @@ void MAX30003_Init(void)
     g_max30003_init_step = 0x500U | MAX30003_MNGR_DYN;
 #else
     if (!MAX30003_WriteVerify(MAX30003_MNGR_DYN,
+                              #if RECORD_TEST_MAX30003_NO_FASTREC
+                              0x000000,
+#else
                               MAX30003_MNGR_DYN_AUTO_FAST,
+#endif
                               "MNGR_DYN")) return;
 #endif
 
@@ -412,7 +424,11 @@ void MAX30003_StartStream(void)
 
     /* 鎵撳紑姝ｅ父 ECG 涓�?*/
     g_max30003_start_step = 70;
+    #if RECORD_TEST_MAX30003_INTB_CMOS
+    if (MAX30003_WriteReg(MAX30003_EN_INT, MAX30003_EN_INT_CMOS) != HAL_OK) {
+#else
     if (MAX30003_WriteReg(MAX30003_EN_INT, MAX30003_EN_INT_NORMAL) != HAL_OK) {
+#endif
         g_max30003_start_step = 71;
         return;
     }

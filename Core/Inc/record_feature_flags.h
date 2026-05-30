@@ -67,6 +67,18 @@
 /* C4 sub-mode: fixed read size (0=auto 32, 4/8/16/32=fixed words per read) */
 #define RECORD_TEST_ECG_FIFO_FIXED_SIZE  0
 
+
+/* === V3: Lead-off / Fast Recovery test === */
+#define RECORD_TEST_MAX30003_NO_DCLOFF  0  /* 1=disable DC lead-off in CNFG_GEN */
+#define RECORD_TEST_MAX30003_NO_FASTREC 0  /* 1=disable Fast Recovery in MNGR_DYN */
+
+/* === V4: FMSTR test === */
+/* 0=32k(default), 1=16k, 2=8k, 3=4k */
+#define RECORD_TEST_MAX30003_FMSTR 0
+
+/* === V6: INTB type === */
+#define RECORD_TEST_MAX30003_INTB_CMOS 0  /* 1=CMOS output, 0=Open-Drain */
+
 /* === Phase 2: C5 Rate Select === */
 /* 0=512 SPS, 1=256 SPS, 2=128 SPS */
 #define RECORD_TEST_ECG_RATE_SELECT 0
