@@ -1,0 +1,134 @@
+{
+  "project": {
+    "name": "MAX30102_HeartRate_Sensor",
+    "description": "MAX30102 心率血氧采集电路 - STM32L496RET6 I2C3",
+    "revision": "1.0",
+    "date": "2026-05-26"
+  },
+  "components": [
+    {
+      "ref": "U1",
+      "kind": "sensor",
+      "part": "MAX30102EFD+T",
+      "footprint": "OLGA-14",
+      "manufacturer": "Maxim Integrated",
+      "description": "心率血氧传感器",
+      "lcsc": "C2759589",
+      "pins": {
+        "1": "IR_DRV",
+        "2": "R_DRV",
+        "3": "SCL",
+        "4": "SDA",
+        "5": "INT",
+        "6": "VLED+",
+        "7": "NC",
+        "8": "PGND",
+        "9": "GND",
+        "10": "VDD",
+        "11": "NC",
+        "12": "NC",
+        "13": "NC",
+        "14": "NC"
+      }
+    },
+    {
+      "ref": "U2",
+      "kind": "sensor",
+      "part": "TXS0104ERGYR",
+      "footprint": "VQFN-14",
+      "manufacturer": "Texas Instruments",
+      "description": "4路双向电平转换器 (已存在,共享I2C3)",
+      "lcsc": "C53434",
+      "pins": {
+        "1": "VCCA",
+        "2": "A1",
+        "3": "A2",
+        "4": "A3",
+        "5": "A4",
+        "6": "NC",
+        "7": "GND",
+        "8": "B1",
+        "9": "B2",
+        "10": "B3",
+        "11": "B4",
+        "12": "OE",
+        "13": "VCCB",
+        "14": "NC"
+      }
+    },
+    {
+      "ref": "MCU",
+      "kind": "mcu_module",
+      "part": "STM32L496RET6",
+      "footprint": "LQFP-64",
+      "manufacturer": "STMicroelectronics",
+      "description": "主控 (已存在)",
+      "pins": {
+        "PC0": "I2C3_SCL",
+        "PC1": "I2C3_SDA",
+        "PH1": "PPG_INT",
+        "VSS": "GND"
+      }
+    },
+    {
+      "ref": "R1",
+      "kind": "passive",
+      "part": "4.7kΩ",
+      "footprint": "0402",
+      "description": "SCL上拉(传感器侧1.8V)"
+    },
+    {
+      "ref": "R2",
+      "kind": "passive",
+      "part": "4.7kΩ",
+      "footprint": "0402",
+      "description": "SDA上拉(传感器侧1.8V)"
+    },
+    {
+      "ref": "R3",
+      "kind": "passive",
+      "part": "4.7kΩ",
+      "footprint": "0402",
+      "description": "INT上拉至3.3V"
+    },
+    {
+      "ref": "C1",
+      "kind": "passive",
+      "part": "0.1μF",
+      "footprint": "0402",
+      "description": "VDD高频去耦"
+    },
+    {
+      "ref": "C2",
+      "kind": "passive",
+      "part": "4.7μF",
+      "footprint": "0603",
+      "description": "VDD低频去耦"
+    },
+    {
+      "ref": "C3",
+      "kind": "passive",
+      "part": "10μF 6.3V",
+      "footprint": "1206",
+      "description": "VLED+储能钽电容"
+    },
+    {
+      "ref": "C4",
+      "kind": "passive",
+      "part": "0.1μF",
+      "footprint": "0402",
+      "description": "VLED+高频去耦"
+    }
+  ],
+  "nets": {
+    "VDD_1V8": ["U1.10", "U2.1", "C1.1", "C2.1", "R1.1", "R2.1"],
+    "VLED_3V3": ["U1.6", "C3.1", "C4.1"],
+    "GND": ["U1.9", "U1.8", "U2.7", "MCU.VSS", "C1.2", "C2.2", "C3.2", "C4.2"],
+    "I2C3_SCL": ["MCU.PC0", "U2.2"],
+    "I2C3_SDA": ["MCU.PC1", "U2.3"],
+    "SCL_1V8": ["U2.8", "U1.3", "R1.2"],
+    "SDA_1V8": ["U2.9", "U1.4", "R2.2"],
+    "PPG_INT": ["MCU.PH1", "U1.5", "R3.1"],
+    "VDD_3V3": ["U2.13", "R3.2", "U2.12"]
+  }
+}
