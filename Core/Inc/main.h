@@ -92,6 +92,8 @@ extern volatile uint8_t ecg_streaming;
 #define LINK_GPIO_Port GPIOC
 #define RST_BLUETOOTH_Pin GPIO_PIN_7
 #define RST_BLUETOOTH_GPIO_Port GPIOC
+#define MOD_BLUETOOTH_Pin GPIO_PIN_15
+#define MOD_BLUETOOTH_GPIO_Port GPIOA
 #define ECG_INT_Pin GPIO_PIN_6
 #define ECG_INT_GPIO_Port GPIOB
 #define ECG_INT_EXTI_IRQn EXTI9_5_IRQn

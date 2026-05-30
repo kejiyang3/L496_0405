@@ -13,6 +13,7 @@
 #include "sd_debug_log.h"
 #include "record_feature_flags.h"
 #include "session_manager.h"
+#include "audio_run_diag.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -21,7 +22,7 @@
 extern osMutexId_t Mtx_SDCardHandle;
 extern void Safe_USB_Printf(const char *format, ...);
 
-#define AUDIO_SAMPLE_RATE_HZ        16000U
+#define AUDIO_SAMPLE_RATE_HZ RECORD_MIC_SAMPLE_RATE_HZ
 #define AUDIO_USB_VERBOSE           0
 #define AUDIO_DMA_BYTES             (64U * 1024U)
 #define AUDIO_DMA_WORDS             (AUDIO_DMA_BYTES / sizeof(uint32_t))
@@ -53,6 +54,8 @@ static int16_t s_audio_min_pcm = 32767;
 static int16_t s_audio_max_pcm = -32768;
 static volatile uint32_t s_audio_failed_seq = 0;
 static int16_t s_pcm_half[AUDIO_PCM_HALF_SAMPLES];
+
+AudioRunDiag_t g_audio_run_diag = {0};
 
 static void build_wav_header(uint8_t hdr[44], uint32_t data_bytes, uint32_t sample_rate_hz);
 
@@ -102,7 +105,7 @@ static FRESULT audio_update_header_and_sync_locked(void)
     FRESULT res;
     UINT bw = 0;
 
-    build_wav_header(hdr, s_audio_bytes, AudioRecorder_GetEffectiveSampleRateHz());
+    build_wav_header(hdr, s_audio_bytes, RECORD_MIC_SAMPLE_RATE_HZ);
 
     res = f_lseek(&s_audio_file, 0);
     if (res == FR_OK) {
@@ -341,7 +344,7 @@ static void audio_close_file(void)
     }
     close_res = f_close(&s_audio_file); if(s_audio_blocks_open){f_close(&s_audio_blocks_file);s_audio_blocks_open=0;}
 #else
-    build_wav_header(hdr, s_audio_bytes, AudioRecorder_GetEffectiveSampleRateHz());
+    build_wav_header(hdr, s_audio_bytes, RECORD_MIC_SAMPLE_RATE_HZ);
 
     if (Mtx_SDCardHandle != NULL) {
         if (osMutexAcquire(Mtx_SDCardHandle, pdMS_TO_TICKS(100)) != osOK) {
@@ -579,6 +582,11 @@ void AudioRecorder_Task(void *argument)
         /* --- End session latch --- */
 
         s_audio_recording_active = 1;
+        g_audio_run_diag.audio_state = 2;
+        g_audio_run_diag.sai_dma_started++;
+        AudioRunDiag_Reset();
+        g_audio_run_diag.audio_state = 2;
+        g_audio_run_diag.sai_dma_started++;
         g_ecg_rec.mic_power_tick = HAL_GetTick();
         if (RECORD_DIAG_AUDIO_EN_MIC_ON) { HAL_GPIO_WritePin(EN_MIC_GPIO_Port, EN_MIC_Pin, GPIO_PIN_SET); }
         osDelay(50);
@@ -688,3 +696,34 @@ void AudioRecorder_Task(void *argument)
 
 
 
+
+/* ===== AUDIO_RUN 诊断实现 ===== */
+
+void AudioRunDiag_Reset(void)
+{
+    memset(&g_audio_run_diag, 0, sizeof(g_audio_run_diag));
+}
+
+void AudioRunDiag_LogSnapshot(void)
+{
+    char line[256];
+    snprintf(line, sizeof(line),
+             "AUDIO_RUN alv=%lu st=%lu dma=%lu hc=%lu blk=%lu/%lu/%lu cap=%lu wr=%lu "
+             "dma_t=%lu wr_t=%lu err=%lu mtx=%lu wav=%lu/%lu",
+             (unsigned long)g_audio_run_diag.audio_task_alive,
+             (unsigned long)g_audio_run_diag.audio_state,
+             (unsigned long)g_audio_run_diag.sai_dma_started,
+             (unsigned long)g_audio_run_diag.dma_half_count,
+             (unsigned long)g_audio_run_diag.blocks_in,
+             (unsigned long)g_audio_run_diag.blocks_written,
+             (unsigned long)g_audio_run_diag.blocks_dropped,
+             (unsigned long)g_audio_run_diag.bytes_captured,
+             (unsigned long)g_audio_run_diag.bytes_written,
+             (unsigned long)g_audio_run_diag.last_dma_tick,
+             (unsigned long)g_audio_run_diag.last_write_tick,
+             (unsigned long)g_audio_run_diag.last_error_code,
+             (unsigned long)g_audio_run_diag.mutex_timeouts,
+             (unsigned long)g_audio_run_diag.wav_file_open,
+             (unsigned long)g_audio_run_diag.wav_data_bytes);
+    SD_DebugLog_WriteLine(line);
+}
