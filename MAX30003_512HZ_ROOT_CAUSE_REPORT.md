@@ -1,99 +1,92 @@
 # MAX30003 512Hz 根因排查总报告
 
-**日期**: 2026-05-30 | **硬件**: STM32L496 + MAX30003 | **固件**: b2590d5
+**日期**: 2026-05-30 | **硬件**: STM32L496 + MAX30003 | **固件**: 10594ff
 
 ---
 
-## 1. 问题定义
+## 1. 问题
 
-MAX30003 配置为 512 SPS（CNFG_ECG RATE=00），实际 ECG 采样率仅约 374~391 Hz（约 73% 效率）。
-
----
-
-## 2. 已排除的嫌疑
-
-| 序号 | 嫌疑 | 实验 | 结论 |
-|------|------|------|------|
-| 1 | 软件阻塞 | C1: ECG-only, 无SD, 无音频 | 374 Hz — 非瓶颈 |
-| 2 | AudioTask 抢占 | Case C 对比 | 已修复，非主因 |
-| 3 | SD Debug Log 阻塞 | P3 no-debug | 已修复，非主因 |
-| 4 | FIFO 读取方式 | C4 Burst vs Normal | Burst 最优 |
-| 5 | Drain 频率 | C2 8→4→2ms | 8ms 最优 |
-| 6 | RATE 配置错误 | C7 寄存器读回 | CNFG_ECG=0x025000 ? |
-| 7 | FCLK 频率异常 | 示波器实测 | 32.5~32.9 kHz ? |
+配置 512 SPS → 实际 ~375 Hz（效率 73%）
 
 ---
 
-## 3. C7: 寄存器读回
+## 2. 已排除
 
-| 寄存器 | 读回值 | 预期 | 结果 |
-|--------|--------|------|------|
-| CNFG_GEN | 0x081217 | 0x081217 | ? |
-| CNFG_ECG | 0x025000 | 0x025000 | ? |
-| FMSTR | 00 | 00 | ? |
-| RATE | 00 | 00 (512 SPS) | ? |
-
----
-
-## 4. C3: STATUS-only — 芯片级证据
-
-不读 FIFO，仅统计 STATUS.EINT 翻转:
-
-| 指标 | 数值 |
-|------|------|
-| EINT 触发频率 | **~81 Hz** |
-| 预期 (512 SPS) | 512 Hz |
-
-→ MAX30003 内部产样速率不达 512 Hz。
+| # | 嫌疑 | 证据 |
+|---|------|------|
+| 1 | 软件阻塞 | C1 无SD无音频 = 375Hz |
+| 2 | AudioTask | 已修复，Case C 正常 |
+| 3 | SD DebugLog | P3 no-debug 恢复 |
+| 4 | Burst读取 | C4 Burst最优 |
+| 5 | Drain频率 | C2 8ms最优 |
+| 6 | RATE配置 | C7 CNFG_ECG=0x025000 ? |
+| 7 | **FCLK频率** | **示波器 32.5-32.9kHz ?** |
 
 ---
 
-## 5. C5: 512 / 256 / 128 比例
+## 3. 已确认的寄存器配置
 
-| 设定 | 实际 | 效率 |
+| 寄存器 | 值 | 含义 |
+|--------|-----|------|
+| CNFG_GEN | 0x081217 | EN_ECG + FMSTR=32K + DCLOFF + RBIAS |
+| CNFG_ECG | 0x025000 | RATE=00(512SPS) + GAIN=80x + DHPF=0.5Hz + DLPF=40Hz |
+| EN_INT (init) | 0x000002 | IDLE: EINT/EOVF 禁能, INTB_TYPE=10 |
+| EN_INT (stream) | 0xC00002 | EN_EINT=1 + EN_EOVF=1 + INTB_TYPE=10 |
+| MNGR_INT | 0x800000 | EFIT=4 (每4样本EINT) |
+| MNGR_DYN | 0xBF0000 | Auto Fast Recovery |
+
+---
+
+## 4. 芯片行为异常
+
+| 现象 | 预期 | 实际 |
 |------|------|------|
-| 512 SPS | ~375 Hz | 73% |
-| 256 SPS | ~243 Hz | 95% |
-| 128 SPS | ~119 Hz | 93% |
-
-→ 比例非线性，高 SPS 效率低 → PLL/时钟问题。
-
----
-
-## 6. INTB 行为
-
-INTB 仅 ~1 Hz 触发。实际靠 8ms timeout 轮询 drain。
+| EINT翻转 | 512 Hz (EFIT=1) | **~81 Hz** |
+| INTB触发 | 每EINT翻转 | **~1 Hz** |
+| FIFO有效样本 | 512/s | **~375/s** |
+| 512/256比例 | 2:1 | **1.54:1** (非线性) |
 
 ---
 
-## 7. FCLK 实测
+## 5. INTB_TYPE 关键发现
 
-32.5~32.9 kHz，偏差 <1%，**正常**。
+EN_INT = 0xC00002 → **INTB_TYPE = 10 = Open-Drain 无内部上拉**
+
+这意味着 PCB 上必须有一个外部上拉电阻。若无，INTB 引脚浮空 → 电平不确定 → 可能被误读。
 
 ---
 
-## 8. 根因判断
+## 6. 剩余待查（需要板子连接）
+
+| P | 项目 | 方法 |
+|----|------|------|
+| **P0** | PLL 锁定状态 | GDB: `g_ecg_rec.last_status & 0x000100` |
+| **P0** | 持续PLL监控 | 每秒 diag log 新增 pll= 字段 |
+| **P1** | INTB外部上拉 | 万用表测 PB6 电压 / 示波器波形 |
+| **P1** | EN_INT读回 | GDB确认写入 0xC00002 成功 |
+| **P2** | INTB引脚直连 | 示波器直接测 MAX30003 INTB 脚 |
+
+---
+
+## 7. 诊断命令（板子连上后执行）
 
 ```
-软件侧     → 全部排除 ?
-硬件配置   → 全部排除 ?
-FCLK       → 正常 ?
-───────────────────────
-芯片行为   → 异常！
-  EINT     → ~81 Hz (非 512)
-  INTB     → ~1 Hz  (非 512)
-  比例     → 非线性
-  实际SPS  → ~375 Hz (非 512)
-```
+# 1. 烧录
+openocd -f interface/stlink.cfg -f target/stm32l4x.cfg -c "program build/L496_0405.elf verify reset exit"
 
-**指向**: MAX30003 内部 PLL / 采样引擎 / INTB 配置。
+# 2. GDB 批量诊断
+arm-none-eabi-gdb -q -batch -x max3003_chip_diag.gdb build/L496_0405.elf
+```
 
 ---
 
-## 9. 下一步
+## 8. 当前判断
 
-| 优先级 | 项目 | 方式 |
-|--------|------|------|
-| P0 | STATUS[PLLINT] | GDB 读 PLL 锁定位 |
-| P0 | EN_INT 寄存器 | 读 EINT/EOVF/INTB_TYPE |
-| P1 | INTB 引脚 | 示波器测 PB6 |
+```
+FCLK ? → 配置 ? → 软件 ?
+         ↓
+    MAX30003 芯片内部问题
+    ├─ PLL 可能未锁定 (最可疑)
+    ├─ INTB_TYPE=10 缺外部上拉
+    └─ 或芯片本身缺陷
+```

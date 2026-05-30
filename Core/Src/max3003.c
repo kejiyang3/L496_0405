@@ -735,7 +735,8 @@ void MAX30003_DiagLog_Run(void)
         "etag=0:%lu,1:%lu,2:%lu,3:%lu,4:%lu,5:%lu,6:%lu,7:%lu,"
         "pack_in=%lu,pack_drop=%lu,buf_max=%lu,"
         "sd_written=%lu,sd_drop=%lu,sd_err=%lu,sd_flush=%lu,"
-        "spi_burst=%lu,spi_err=%lu,spi_tmo=%lu,burst_us=%lu,burst_max=%lu",
+        "spi_burst=%lu,spi_err=%lu,spi_tmo=%lu,burst_us=%lu,burst_max=%lu,"
+        "pll=%lu,pll_edges=%lu,rec_gap=%lu",
         (unsigned long)now,
         (unsigned long)g_ecg_rec.diag_task_calls,
         (unsigned long)ecg_irq_count,
@@ -767,7 +768,10 @@ void MAX30003_DiagLog_Run(void)
         (unsigned long)g_ecg_rec.max30003_spi_error_count,
         (unsigned long)g_ecg_rec.max30003_spi_timeout_count,
         (unsigned long)g_ecg_rec.max30003_burst_us_last,
-        (unsigned long)g_ecg_rec.max30003_burst_us_max);
+        (unsigned long)g_ecg_rec.max30003_burst_us_max,
+        (unsigned long)((g_ecg_rec.last_status & MAX30003_STATUS_PLLINT) ? 1 : 0),
+        (unsigned long)g_ecg_rec.pll_edge_count,
+        (unsigned long)g_ecg_rec.diag_max_gap_recording_ms);
     SD_DebugLog_WriteLine(buf);
 }
 
@@ -802,7 +806,10 @@ void MAX30003_DiagLog_Stop(void)
         (unsigned long)g_ecg_rec.max30003_spi_error_count,
         (unsigned long)g_ecg_rec.max30003_spi_timeout_count,
         (unsigned long)g_ecg_rec.diag_max_gap_ms,
-        (unsigned long)g_ecg_rec.max30003_burst_us_max);
+        (unsigned long)g_ecg_rec.max30003_burst_us_max,
+        (unsigned long)((g_ecg_rec.last_status & MAX30003_STATUS_PLLINT) ? 1 : 0),
+        (unsigned long)g_ecg_rec.pll_edge_count,
+        (unsigned long)g_ecg_rec.diag_max_gap_recording_ms);
     SD_DebugLog_WriteLine(buf);
 }
 int32_t MAX30003_Read_Sample(void)
