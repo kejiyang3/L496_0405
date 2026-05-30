@@ -361,7 +361,7 @@ void MAX30003_Init(void)
 
     /* 绛夊�?PLL 閿佸�?*/
     APP_USB_LOG("[MAX30003_INIT] step=pll_wait\r\n");
-    uint8_t retry = 50;
+    uint8_t retry = 250;  /* was 50, extended to 500ms for PLL */
     while(retry--) {
         MAX30003_ReadReg(MAX30003_STATUS, &dummy);
         if((dummy & MAX30003_STATUS_PLLINT) == 0) break;
