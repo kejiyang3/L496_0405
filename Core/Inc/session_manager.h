@@ -35,6 +35,7 @@ extern SessionInfo_t g_session;
 int  Session_Create(uint32_t tick_now);
 int  Session_WriteMeta(void);
 int  Session_WriteDiagSummary(void);
+int  Session_WriteModalitySummary(void);
 
 #ifdef __cplusplus
 }

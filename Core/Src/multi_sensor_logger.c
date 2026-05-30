@@ -1,6 +1,7 @@
 #include "multi_sensor_logger.h"
 #include "ecg_record_control.h"
 #include "sd_debug_log.h"
+#include "session_manager.h"
 #include "fatfs.h"
 #include "ff.h"
 #include <stdio.h>
@@ -20,7 +21,7 @@ extern volatile uint32_t g_ppg_timeout_drain_count;
 
 #define MS_USB_VERBOSE 0
 
-/* ========== 闃熷垪 ========== */
+/* ========== 闃熷�?========== */
 #define MS_QUEUE_DEPTH      12
 osMessageQueueId_t Q_MultiSensorBlockHandle = NULL;
 
@@ -49,14 +50,14 @@ static uint32_t s_ecg_seq = 0;
 static uint32_t s_ppg_seq = 0;
 static uint32_t s_imu_seq = 0;
 
-/* 缁熻 */
+/* 缁熻�?*/
 static volatile uint32_t s_ppg_sample_count = 0;
 static volatile uint32_t s_imu_sample_count = 0;
 static volatile uint32_t s_ecg_block_drop = 0;
 static volatile uint32_t s_ppg_block_drop = 0;
 static volatile uint32_t s_imu_block_drop = 0;
 
-/* 鐪熷疄鍐欏叆鎴愬姛/澶辫触璁℃暟 */
+/* 鐪熷疄鍐欏叆鎴愬�?澶辫触璁℃暟 */
 static volatile uint32_t s_ecg_write_ok  = 0;
 static volatile uint32_t s_ecg_write_fail = 0;
 static volatile uint32_t s_ppg_write_ok  = 0;
@@ -74,7 +75,7 @@ static volatile uint8_t s_stop_requested = 0;
 static FIL s_ms_file;
 static volatile uint8_t s_file_opened = 0;
 
-/* ========== 鍐呴儴锛氭彁浜?block ========== */
+/* ========== 鍐呴儴锛氭彁�?block ========== */
 static void submit_ecg_block(uint16_t count)
 {
     uint8_t idx = s_ecg_active;
@@ -244,7 +245,7 @@ void MultiSensorLogger_AddIMU(int16_t ax, int16_t ay, int16_t az,
     }
 }
 
-/* ========== Stop 鏃?flush 鍗婃弧 block ========== */
+/* ========== Stop �?flush 鍗婃�?block ========== */
 
 void MultiSensorLogger_RequestStopAndFlush(void)
 {
@@ -350,9 +351,11 @@ void MultiSensorLogger_GetStats(MS_Stats_t *stats)
     stats->sd_write_bytes = g_ecg_rec.sd_write_bytes;
     stats->sd_sync_count = g_ecg_rec.sd_sync_count;
     stats->writer_get_count = s_writer_get_count;
+    stats->ecg_submit_ok = s_ecg_submit_ok;
+    stats->ecg_submit_fail = s_ecg_submit_fail;
 }
 
-/* ========== Writer: block 閲婃斁 ========== */
+/* ========== Writer: block 閲婃�?========== */
 static void free_ecg_block(uint8_t idx) { s_ecg_blocks[idx].count = 0; s_ecg_block_free[idx] = 1; }
 static void free_ppg_block(uint8_t idx) { s_ppg_blocks[idx].count = 0; s_ppg_block_free[idx] = 1; }
 static void free_imu_block(uint8_t idx) { s_imu_blocks[idx].count = 0; s_imu_block_free[idx] = 1; }
@@ -538,7 +541,7 @@ static void write_imu_block(FIL *fp, uint8_t idx)
     free_imu_block(idx);
 }
 
-/* ========== Writer 浠诲姟 ========== */
+/* ========== Writer 浠诲�?========== */
 
 #define MS_SYNC_EVERY_BLOCKS    8
 
@@ -552,7 +555,7 @@ void StartTask_MultiSensor_SDWriter(void *argument)
     MultiSensorLogger_InitQueue();
 
     for (;;) {
-        /* 绛夊緟 RECORDING 鐘舵€?*/
+        /* 绛夊�?RECORDING 鐘舵�?*/
         while (g_ecg_rec.state != ECG_REC_RECORDING) {
             osDelay(50);
         }
@@ -570,7 +573,7 @@ void StartTask_MultiSensor_SDWriter(void *argument)
             }
         }
 
-        Safe_USB_Printf("[MS_SD] mount begin file=%s\r\n", g_ecg_rec.file_name);
+        Safe_USB_Printf("[MS_SD] mount begin session=%s\r\n", g_session.session_id);
         res = f_mount(&SDFatFS, SDPath, 1);
         if (res != FR_OK) {
             Safe_USB_Printf("[MS_SD][ERR] mount res=%d\r\n", res);
@@ -580,11 +583,13 @@ void StartTask_MultiSensor_SDWriter(void *argument)
             continue;
         }
         Safe_USB_Printf("[MS_SD] mount ok\r\n");
+        Session_Create(HAL_GetTick());
 
         Safe_USB_Printf("[MS_SD] open begin file=%s\r\n", g_ecg_rec.file_name);
-        res = f_open(&s_ms_file, g_ecg_rec.file_name, FA_CREATE_ALWAYS | FA_WRITE);
+                { char fpath[64]; snprintf(fpath, sizeof(fpath), "%s/ecg_samples.csv", g_session.session_dir);
+          res = f_open(&s_ms_file, fpath, FA_CREATE_ALWAYS | FA_WRITE); }
         if (res != FR_OK) {
-            Safe_USB_Printf("[MS_SD][ERR] open res=%d file=%s\r\n", res, g_ecg_rec.file_name);
+            Safe_USB_Printf("[MS_SD][ERR] open res=%d\r\n", res);
             SD_DebugLog_WriteLine("MS_WRITER_OPEN_FAIL");
             if (Mtx_SDCardHandle != NULL) osMutexRelease(Mtx_SDCardHandle);
             g_ecg_rec.state = ECG_REC_ERROR;
@@ -637,7 +642,7 @@ void StartTask_MultiSensor_SDWriter(void *argument)
 
         Safe_USB_Printf("[MS_SD] file opened and released\r\n");
 
-        /* 涓诲惊鐜細鍙?block 鍐欏叆 */
+        /* 涓诲惊鐜細�?block 鍐欏�?*/
         while (g_ecg_rec.state == ECG_REC_RECORDING ||
                g_ecg_rec.state == ECG_REC_STOPPING ||
                osMessageQueueGetCount(Q_MultiSensorBlockHandle) > 0) {
@@ -713,7 +718,7 @@ void StartTask_MultiSensor_SDWriter(void *argument)
             }
         }
 
-        /* 鍏抽棴鏂囦欢 鈥?浠?fsync+close锛屼笉 unmount */
+        /* 鍏抽棴鏂囦欢 �?�?fsync+close锛屼�?unmount */
         FRESULT final_sync = FR_OK;
         FRESULT close_res = FR_OK;
         {
@@ -739,7 +744,7 @@ void StartTask_MultiSensor_SDWriter(void *argument)
                         final_sync, close_res,
                         (unsigned long)g_ecg_rec.sd_write_bytes,
                         (unsigned long)g_ecg_rec.ecg_written_count);
-        /* 涓嶈皟鐢?f_mount(NULL)锛岄伩鍏嶅奖鍝?PPGDiagWriter 绛夋寔鏈夋枃浠剁殑浠诲姟 */
+        /* 涓嶈皟鐢?f_mount(NULL)锛岄伩鍏嶅奖�?PPGDiagWriter 绛夋寔鏈夋枃浠剁殑浠诲姟 */
 
         s_file_opened = 0;
         g_ecg_rec.sd_file_opened = 0;
@@ -747,7 +752,7 @@ void StartTask_MultiSensor_SDWriter(void *argument)
         g_ecg_rec.stop_tick = HAL_GetTick();
         g_ecg_rec.state = ECG_REC_STOPPED;
 
-        /* 鍐欑粺璁℃憳瑕佸埌 debug_log */
+        /* 鍐欑粺璁℃憳瑕佸�?debug_log */
         #if 1
         {
             char stats[640];

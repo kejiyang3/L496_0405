@@ -1,4 +1,5 @@
 #include "ecg_record_control.h"
+#include "session_manager.h"
 #include "record_feature_flags.h"
 #include "main.h"
 #include <stdio.h>
@@ -44,7 +45,7 @@ ECG_RecordControl_t g_ecg_rec = {
     .file_name = "0:/ecg_001.csv"
 };
 
-/* 鏍规嵁褰撳墠 file_seq 鏇存柊 file_name */
+/* 鏍规嵁褰撳墠 file_seq 鏇存�?file_name */
 void ECG_UpdateFileName(void)
 {
     snprintf(g_ecg_rec.file_name, sizeof(g_ecg_rec.file_name),
@@ -73,7 +74,7 @@ void ECG_RequestSaveInfo(void)
     g_ecg_rec.request_save_info = 1;
 }
 
-/* 姣忔寮€濮嬫柊璁板綍鍓嶉噸缃墍鏈夌粺璁?*/
+/* 姣忔寮€濮嬫柊璁板綍鍓嶉噸缃墍鏈夌粺�?*/
 void ECG_ResetStats(void)
 {
     g_ecg_rec.last_status = 0;

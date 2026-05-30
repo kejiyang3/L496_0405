@@ -9,6 +9,7 @@ extern osMutexId_t Mtx_SDCardHandle;
 extern uint8_t RETARGET_RecordFeatureFlags_H_was_included;
 #define RECORD_FEATURE_FLAGS_DEFINED
 #include "record_feature_flags.h"
+#include "multi_sensor_logger.h"
 
 SessionInfo_t g_session = {0};
 
@@ -156,6 +157,106 @@ int Session_WriteDiagSummary(void)
             (unsigned long)g_ecg_rec.diag_notify_timeouts);
         UINT bw;
         f_write(&fp, buf, (UINT)len, &bw);
+        f_close(&fp);
+    }
+    if (Mtx_SDCardHandle != NULL) osMutexRelease(Mtx_SDCardHandle);
+    return (res == FR_OK) ? 0 : -3;
+}
+
+int Session_WriteModalitySummary(void)
+{
+    if (!g_session.created) return -1;
+
+    MS_Stats_t stats;
+    MultiSensorLogger_GetStats(&stats);
+
+    char path[64];
+    snprintf(path, sizeof(path), "%s/modality_summary.csv", g_session.session_dir);
+
+    FIL fp; FRESULT res;
+    if (Mtx_SDCardHandle != NULL) osMutexAcquire(Mtx_SDCardHandle, osWaitForever);
+    res = f_open(&fp, path, FA_CREATE_ALWAYS | FA_WRITE);
+    if (res == FR_OK) {
+        const char *hdr = "modality,enabled,configured_sps,capture_count,queue_submit_ok,queue_submit_fail,writer_get_count,written_count,file_count,first_tick_ms,last_tick_ms,duration_ms,actual_avg_sps,drop_count,error_count,status\r\n";
+        UINT bw;
+        f_write(&fp, hdr, (UINT)strlen(hdr), &bw);
+
+        char line[256];
+        uint32_t dur = g_session.duration_ms;
+        if (dur == 0) dur = 1;
+        int n;
+        float sps;
+
+        /* ECG */
+        sps = (float)g_ecg_rec.ecg_sample_count * 1000.0f / (float)dur;
+        n = snprintf(line, sizeof(line),
+            "ECG,1,%u,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%.1f,%lu,%lu,OK\r\n",
+            (unsigned)RECORD_ECG_SAMPLE_RATE_HZ,
+            (unsigned long)g_ecg_rec.ecg_sample_count,
+            (unsigned long)stats.ecg_submit_ok,
+            (unsigned long)stats.ecg_submit_fail,
+            (unsigned long)stats.writer_get_count,
+            (unsigned long)stats.ecg_write_ok,
+            (unsigned long)stats.ecg_write_ok,
+            (unsigned long)g_session.tick_start_ms,
+            (unsigned long)g_session.tick_end_ms,
+            (unsigned long)dur, (double)sps,
+            (unsigned long)stats.ecg_block_drop,
+            (unsigned long)g_ecg_rec.fifo_eovf_count);
+        if (n > 0) f_write(&fp, line, (UINT)n, &bw);
+
+        /* PPG */
+        sps = (float)stats.ppg_samples * 1000.0f / (float)dur;
+        n = snprintf(line, sizeof(line),
+            "PPG,%u,%u,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%.1f,%lu,%lu,OK\r\n",
+            (unsigned)RECORD_ENABLE_PPG,
+            (unsigned)RECORD_PPG_SAMPLE_RATE_HZ,
+            (unsigned long)stats.ppg_samples,
+            (unsigned long)0UL, (unsigned long)0UL, (unsigned long)0UL,
+            (unsigned long)stats.ppg_write_ok,
+            (unsigned long)stats.ppg_write_ok,
+            (unsigned long)g_session.tick_start_ms,
+            (unsigned long)g_session.tick_end_ms,
+            (unsigned long)dur, (double)sps,
+            (unsigned long)stats.ppg_block_drop,
+            (unsigned long)0UL);
+        if (n > 0) f_write(&fp, line, (UINT)n, &bw);
+
+        /* IMU */
+        sps = (float)stats.imu_samples * 1000.0f / (float)dur;
+        n = snprintf(line, sizeof(line),
+            "IMU,%u,%u,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%.1f,%lu,%lu,OK\r\n",
+            (unsigned)RECORD_ENABLE_ICM,
+            (unsigned)104,
+            (unsigned long)stats.imu_samples,
+            (unsigned long)0UL, (unsigned long)0UL, (unsigned long)0UL,
+            (unsigned long)stats.imu_write_ok,
+            (unsigned long)stats.imu_write_ok,
+            (unsigned long)g_session.tick_start_ms,
+            (unsigned long)g_session.tick_end_ms,
+            (unsigned long)dur, (double)sps,
+            (unsigned long)stats.imu_block_drop,
+            (unsigned long)0UL);
+        if (n > 0) f_write(&fp, line, (UINT)n, &bw);
+
+        /* MIC */
+        uint32_t mic_samples = g_ecg_rec.mic_bytes / 2U;
+        sps = (float)mic_samples * 1000.0f / (float)dur;
+        n = snprintf(line, sizeof(line),
+            "MIC,%u,%u,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%.1f,%lu,%lu,OK\r\n",
+            (unsigned)RECORD_ENABLE_AUDIO,
+            (unsigned)RECORD_MIC_SAMPLE_RATE_HZ,
+            (unsigned long)mic_samples,
+            (unsigned long)0UL, (unsigned long)0UL, (unsigned long)0UL,
+            (unsigned long)mic_samples,
+            (unsigned long)mic_samples,
+            (unsigned long)g_session.tick_start_ms,
+            (unsigned long)g_session.tick_end_ms,
+            (unsigned long)dur, (double)sps,
+            (unsigned long)g_ecg_rec.mic_drops,
+            (unsigned long)g_ecg_rec.mic_write_errors);
+        if (n > 0) f_write(&fp, line, (UINT)n, &bw);
+
         f_close(&fp);
     }
     if (Mtx_SDCardHandle != NULL) osMutexRelease(Mtx_SDCardHandle);

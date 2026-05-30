@@ -29,6 +29,7 @@
 #include "imu_record_mode.h"
 #include "record_feature_flags.h"
 #include "session_manager.h"
+#include "session_manager.h"
 #include "i2c.h"
 /* USER CODE END Includes */
 /* Private typedef -----------------------------------------------------------*/
@@ -723,6 +724,11 @@ void StartTask_Sensor(void *argument)
          g_ecg_rec.state == ECG_REC_STOPPED)) {
         finalize_after_stop = 0;
         g_ecg_rec.state = ECG_REC_STOPPED;
+      g_session.tick_end_ms = HAL_GetTick();
+      g_session.duration_ms = g_session.tick_end_ms - g_session.tick_start_ms;
+      Session_WriteMeta();
+      Session_WriteDiagSummary();
+      Session_WriteModalitySummary();
       g_session.tick_end_ms = HAL_GetTick();
       g_session.duration_ms = g_session.tick_end_ms - g_session.tick_start_ms;
       Session_WriteMeta();

@@ -1,4 +1,4 @@
-﻿#include "audio_recorder.h"
+#include "audio_recorder.h"
 
 #include "FreeRTOS.h"
 #include "cmsis_os.h"
@@ -234,7 +234,11 @@ static uint8_t audio_open_file(uint32_t seq)
         return 0;
     }
 
-    snprintf(path, sizeof(path), "0:/mic_%03lu.wav", (unsigned long)seq);
+    if (g_session.created) {
+        snprintf(path, sizeof(path), "%s/audio.wav", g_session.session_dir);
+    } else {
+        snprintf(path, sizeof(path), "0:/mic_%03lu.wav", (unsigned long)seq);
+    }
 #if RECORD_TEST_AUDIO_WRITE_ONLY_NO_SYNC
     /* F2: skip WAV header entirely, just open raw file */
     (void)hdr;

@@ -84,6 +84,8 @@ typedef struct {
     uint32_t sd_write_bytes;
     uint32_t sd_sync_count;
     uint32_t writer_get_count;
+    uint32_t ecg_submit_ok;
+    uint32_t ecg_submit_fail;
 } MS_Stats_t;
 
 /* ========== 队列 ========== */
