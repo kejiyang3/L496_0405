@@ -1,7 +1,9 @@
-﻿#include "sd_debug_log.h"
+#include "sd_debug_log.h"
 #include "fatfs.h"
 #include "ff.h"
 #include "cmsis_os.h"
+#include "FreeRTOS.h"
+#include "task.h"
 #include "main.h"
 #include "ecg_record_control.h"
 #include "multi_sensor_logger.h"
@@ -15,8 +17,27 @@ extern void Safe_USB_Printf(const char *format, ...);
 
 #define SD_DEBUG_LOG_BOOT_PATH "0:/debug_log.txt"
 
+/* === RAM Ring Buffer === */
+#define DEBUG_RING_SLOTS    32
+#define DEBUG_RING_SLOT_SZ  192
+#define DEBUG_FLUSH_MS      1000    /* flush every 1s if data pending */
+#define DEBUG_FLUSH_BATCH   8       /* flush up to 8 lines per batch */
+
+typedef struct {
+    char data[DEBUG_RING_SLOT_SZ];
+    uint16_t len;
+} DebugRingEntry_t;
+
+static DebugRingEntry_t s_ring[DEBUG_RING_SLOTS];
+static volatile uint32_t s_ring_write = 0;  /* producer index */
+static volatile uint32_t s_ring_read  = 0;  /* consumer index */
+static volatile uint32_t s_ring_drops = 0;  /* dropped lines */
+static volatile uint8_t  s_ring_overflowed = 0;
+
 static char s_sd_debug_log_path[32] = SD_DEBUG_LOG_BOOT_PATH;
 static uint8_t s_sd_debug_mounted = 0;
+static TaskHandle_t s_writer_task_handle = NULL;
+static volatile uint8_t s_stop_flush_requested = 0;
 
 static uint32_t SD_DebugLog_CurrentSessionSeq(void)
 {
@@ -25,142 +46,102 @@ static uint32_t SD_DebugLog_CurrentSessionSeq(void)
         g_ecg_rec.file_seq > 1U) {
         return g_ecg_rec.file_seq - 1U;
     }
-
     return g_ecg_rec.file_seq;
 }
 
-static FRESULT SD_DebugLog_AppendRaw(const char *text)
+/* --- Ring buffer producer (called from any task) --- */
+static uint8_t ring_push(const char *text, uint16_t len)
 {
-    FIL file;
-    FRESULT res;
-    UINT bw = 0;
-
-    if (text == NULL) return FR_INT_ERR;
-
-    if (Mtx_SDCardHandle != NULL) {
-        uint32_t dd_t0 = HAL_GetTick();
-        if (osMutexAcquire(Mtx_SDCardHandle, pdMS_TO_TICKS(20)) != osOK) {
-            g_sd_debug_diag.acquire_timeout++;
-            Safe_USB_Printf("[SDDBG][ERR] mutex timeout path=%s\r\n", s_sd_debug_log_path);
-            return FR_INT_ERR;
-        }
-        uint32_t dd_wait = HAL_GetTick() - dd_t0;
-        g_sd_debug_diag.wait_ms_last = dd_wait;
-        if (dd_wait > g_sd_debug_diag.wait_ms_max) g_sd_debug_diag.wait_ms_max = dd_wait;
-        g_sd_debug_diag.acquire_count++;
+    uint32_t next = (s_ring_write + 1) % DEBUG_RING_SLOTS;
+    if (next == s_ring_read) {
+        /* buffer full ? drop oldest */
+        s_ring_read = (s_ring_read + 1) % DEBUG_RING_SLOTS;
+        s_ring_drops++;
+        s_ring_overflowed = 1;
     }
+    uint16_t copy_len = (len < DEBUG_RING_SLOT_SZ - 1) ? len : (DEBUG_RING_SLOT_SZ - 1);
+    memcpy(s_ring[s_ring_write].data, text, copy_len);
+    s_ring[s_ring_write].data[copy_len] = '\0';
+    s_ring[s_ring_write].len = copy_len;
+    s_ring_write = next;
+    return 1;
+}
+
+/* --- Ring buffer consumer (called from writer task) --- */
+static uint8_t ring_pop(char *out, uint16_t max_len)
+{
+    if (s_ring_read == s_ring_write) return 0;
+    uint16_t copy_len = s_ring[s_ring_read].len;
+    if (copy_len > max_len - 1) copy_len = max_len - 1;
+    memcpy(out, s_ring[s_ring_read].data, copy_len);
+    out[copy_len] = '\0';
+    s_ring_read = (s_ring_read + 1) % DEBUG_RING_SLOTS;
+    return 1;
+}
+
+static uint32_t ring_count(void)
+{
+    return (s_ring_write >= s_ring_read)
+        ? (s_ring_write - s_ring_read)
+        : (DEBUG_RING_SLOTS - s_ring_read + s_ring_write);
+}
+
+/* --- Internal: actually write one line to SD (called from writer task only) --- */
+static FRESULT debug_flush_one_line(FIL *fp, const char *text)
+{
+    UINT bw = 0;
+    FRESULT res;
 
     if (!s_sd_debug_mounted) {
         res = f_mount(&SDFatFS, SDPath, 1);
         if (res == FR_OK) {
             s_sd_debug_mounted = 1;
         } else {
-            Safe_USB_Printf("[SDDBG][ERR] mount path=%s res=%d\r\n", s_sd_debug_log_path, res);
-            goto release;
+            return res;
         }
     }
 
-    /* 宸?mount 鍚庯紝涓嶅湪姣忔潯鏃ュ織閲岄噸澶?f_mount銆?
-     * 鏁版嵁 CSV 鎵撳紑鍚庡啀娆?mount 鍚屼竴鍗凤紝鍙兘璁╁凡鎵撳紑鐨?FIL 瀵硅薄澶辨晥銆?*/
-    res = f_open(&file, s_sd_debug_log_path, FA_OPEN_APPEND | FA_WRITE);
-    if (res == FR_OK) {
-        uint32_t dd_h0 = HAL_GetTick();
-        FRESULT wr = f_write(&file, text, strlen(text), &bw);
-        {
-            uint32_t dd_wr = HAL_GetTick() - dd_h0;
-            g_sd_debug_diag.write_ms_last = dd_wr;
-            if (dd_wr > g_sd_debug_diag.write_ms_max) g_sd_debug_diag.write_ms_max = dd_wr;
-        }
-        if (wr != FR_OK || bw != strlen(text)) {
-            Safe_USB_Printf("[SDDBG][ERR] write path=%s res=%d bw=%lu len=%lu\r\n",
-                            s_sd_debug_log_path, wr, (unsigned long)bw,
-                            (unsigned long)strlen(text));
-            g_sd_debug_diag.write_error++;
-        } else {
-            g_sd_debug_diag.bytes_written += bw;
-        }
-        {
-            uint32_t dd_s = HAL_GetTick();
-            f_sync(&file);
-            uint32_t dd_sm = HAL_GetTick() - dd_s;
-            g_sd_debug_diag.sync_ms_last = dd_sm;
-            if (dd_sm > g_sd_debug_diag.sync_ms_max) g_sd_debug_diag.sync_ms_max = dd_sm;
-        }
-        {
-            uint32_t dd_h = HAL_GetTick() - dd_h0;
-            g_sd_debug_diag.hold_ms_last = dd_h;
-            if (dd_h > g_sd_debug_diag.hold_ms_max) g_sd_debug_diag.hold_ms_max = dd_h;
-        }
-        f_close(&file);
+    res = f_write(fp, text, strlen(text), &bw);
+    if (res == FR_OK && bw == strlen(text)) {
+        g_sd_debug_diag.bytes_written += bw;
     } else {
-        Safe_USB_Printf("[SDDBG][ERR] open path=%s res=%d\r\n", s_sd_debug_log_path, res);
+        g_sd_debug_diag.write_error++;
     }
-
-release:
-    if (Mtx_SDCardHandle != NULL) {
-        osMutexRelease(Mtx_SDCardHandle);
-    }
-
     return res;
 }
 
+/* --- Non-blocking public API --- */
+
 void SD_DebugLog_Init(void)
 {
+    memset(s_ring, 0, sizeof(s_ring));
+    s_ring_write = 0;
+    s_ring_read  = 0;
+    s_ring_drops = 0;
+    s_ring_overflowed = 0;
+    s_stop_flush_requested = 0;
+    /* queue a BOOT line */
     char line[128];
-    snprintf(s_sd_debug_log_path, sizeof(s_sd_debug_log_path), "%s", SD_DEBUG_LOG_BOOT_PATH);
-    snprintf(line, sizeof(line), "\r\nBOOT tick=%lu\r\n", HAL_GetTick());
-    SD_DebugLog_AppendRaw(line);
+    snprintf(line, sizeof(line), "%lu,BOOT\r\n", HAL_GetTick());
+    ring_push(line, (uint16_t)strlen(line));
 }
 
 void SD_DebugLog_StartNewFile(uint32_t seq)
 {
-#if RECORD_DIAG_DISABLE_SD_DEBUG_LOG || RECORD_DIAG_DISABLE_ALL_SD_WRITES
-    (void)seq;
-    return;
-#endif
-    FIL file;
-    FRESULT res;
-    UINT bw = 0;
     char line[128];
-
+    int n = snprintf(line, sizeof(line),
+                     "%lu,LOG_FILE_BEGIN,seq=%lu\r\n%lu,DIAG_CASE,%d\r\n",
+                     (unsigned long)HAL_GetTick(),
+                     (unsigned long)seq,
+                     (unsigned long)HAL_GetTick(),
+                     (int)RECORD_DIAG_CASE);
+    if (n > 0 && n < (int)sizeof(line)) {
+        ring_push(line, (uint16_t)n);
+    }
+    /* update log file path */
     snprintf(s_sd_debug_log_path, sizeof(s_sd_debug_log_path),
              "0:/log_%03lu.txt", (unsigned long)seq);
-
-    if (Mtx_SDCardHandle != NULL) {
-        if (osMutexAcquire(Mtx_SDCardHandle, pdMS_TO_TICKS(20)) != osOK) {
-            g_sd_debug_diag.acquire_timeout++;
-            Safe_USB_Printf("[SDDBG][ERR] newfile mutex timeout path=%s\r\n", s_sd_debug_log_path);
-            return;
-        }
-    }
-
-    res = f_mount(&SDFatFS, SDPath, 1);
-    if (res == FR_OK) {
-        s_sd_debug_mounted = 1;
-        res = f_open(&file, s_sd_debug_log_path, FA_CREATE_ALWAYS | FA_WRITE);
-        if (res == FR_OK) {
-            int n = snprintf(line, sizeof(line),
-                             "tick,event\r\n%lu,LOG_FILE_BEGIN,seq=%lu\r\n%lu,DIAG_CASE,%d\r\n",
-                             (unsigned long)HAL_GetTick(),
-                             (unsigned long)seq,
-                             (unsigned long)HAL_GetTick(),
-                             (int)RECORD_DIAG_CASE);
-            if (n > 0 && n < (int)sizeof(line)) {
-                f_write(&file, line, (UINT)n, &bw);
-            }
-            f_sync(&file);
-            f_close(&file);
-            Safe_USB_Printf("[SDDBG] new log opened path=%s\r\n", s_sd_debug_log_path);
-        } else {
-            Safe_USB_Printf("[SDDBG][ERR] newfile open path=%s res=%d\r\n", s_sd_debug_log_path, res);
-        }
-    } else {
-        Safe_USB_Printf("[SDDBG][ERR] newfile mount path=%s res=%d\r\n", s_sd_debug_log_path, res);
-    }
-
-    if (Mtx_SDCardHandle != NULL) {
-        osMutexRelease(Mtx_SDCardHandle);
-    }
+    /* s_sd_debug_mounted = 0; -- removed: f_mount would invalidate CSV file handles */
 }
 
 const char *SD_DebugLog_GetPath(void)
@@ -170,267 +151,253 @@ const char *SD_DebugLog_GetPath(void)
 
 void SD_DebugLog_WriteLine(const char *line)
 {
-#if RECORD_DIAG_DISABLE_SD_DEBUG_LOG || RECORD_DIAG_DISABLE_ALL_SD_WRITES
-    (void)line;
-    return;
-#endif
-    char buf[192];
     if (line == NULL) return;
-    snprintf(buf, sizeof(buf), "%lu,%s\r\n", HAL_GetTick(), line);
-    SD_DebugLog_AppendRaw(buf);
+    char buf[256];
+    int n = snprintf(buf, sizeof(buf), "%lu,%s\r\n", HAL_GetTick(), line);
+    if (n > 0 && n < (int)sizeof(buf)) {
+        ring_push(buf, (uint16_t)n);
+    }
 }
 
 void SD_DebugLog_WriteEvent(const char *tag, uint32_t value)
 {
-#if RECORD_DIAG_DISABLE_SD_DEBUG_LOG || RECORD_DIAG_DISABLE_ALL_SD_WRITES
-    (void)tag; (void)value;
-    return;
-#endif
-    char buf[192];
     if (tag == NULL) return;
-    snprintf(buf, sizeof(buf), "%lu,%s,%lu\r\n", HAL_GetTick(), tag, value);
-    SD_DebugLog_AppendRaw(buf);
+    char buf[256];
+    int n = snprintf(buf, sizeof(buf), "%lu,%s,%lu\r\n", HAL_GetTick(), tag, (unsigned long)value);
+    if (n > 0 && n < (int)sizeof(buf)) {
+        ring_push(buf, (uint16_t)n);
+    }
 }
 
 void SD_DebugLog_WriteSnapshot(void)
 {
-#if RECORD_DIAG_DISABLE_SD_DEBUG_LOG || RECORD_DIAG_DISABLE_ALL_SD_WRITES
-    return;
-#endif
-    char buf[512];
-    snprintf(buf, sizeof(buf),
-             "%lu,SNAPSHOT,state=%d,seq=%lu,epoch=%lu,ecg_start=%lu,ecg_stop=%lu,"
-             "mic_power=%lu,mic_open=%lu,mic_dma=%lu,mic_first_half=%lu,mic_stop=%lu,"
-             "mic_bytes=%lu,mic_halves=%lu,mic_drops=%lu,mic_write_errors=%lu,"
-             "samples=%lu,written=%lu,drop=%lu,bytes=%lu,sync=%lu,"
-             "fifo=%lu,valid=%lu,fast=%lu,last=%lu,eovf=%lu,etag_ovf=%lu,etag_unknown=%lu,"
-             "pll_seen=%lu,pll_edge=%lu,status=0x%06lX\r\n",
-             HAL_GetTick(),
-             g_ecg_rec.state,
-             SD_DebugLog_CurrentSessionSeq(),
-             g_ecg_rec.sync_epoch_tick,
-             g_ecg_rec.ecg_stream_start_tick,
-             g_ecg_rec.ecg_stream_stop_tick,
-             g_ecg_rec.mic_power_tick,
-             g_ecg_rec.mic_file_open_tick,
-             g_ecg_rec.mic_dma_start_tick,
-             g_ecg_rec.mic_first_half_tick,
-             g_ecg_rec.mic_stop_tick,
-             g_ecg_rec.mic_bytes,
-             g_ecg_rec.mic_halves,
-             g_ecg_rec.mic_drops,
-             g_ecg_rec.mic_write_errors,
-             g_ecg_rec.ecg_sample_count,
-             g_ecg_rec.ecg_written_count,
-             g_ecg_rec.ecg_drop_count,
-             g_ecg_rec.sd_write_bytes,
-             g_ecg_rec.sd_sync_count,
-             g_ecg_rec.fifo_sample_count,
-             g_ecg_rec.fifo_valid_count,
-             g_ecg_rec.fifo_fast_count,
-             g_ecg_rec.fifo_last_count,
-             g_ecg_rec.fifo_eovf_count,
-             g_ecg_rec.fifo_etag_overflow_count,
-             g_ecg_rec.fifo_unknown_etag_count,
-             g_ecg_rec.pll_status_seen_count,
-             g_ecg_rec.pll_edge_count,
-             g_ecg_rec.last_status);
-    SD_DebugLog_AppendRaw(buf);
+    char buf[640];
+    int n = snprintf(buf, sizeof(buf),
+        "%lu,SNAPSHOT,state=%d,seq=%lu,epoch=%lu,ecg_start=%lu,ecg_stop=%lu,"
+        "mic_power=%lu,mic_open=%lu,mic_dma=%lu,mic_first_half=%lu,mic_stop=%lu,"
+        "mic_bytes=%lu,mic_halves=%lu,mic_drops=%lu,mic_write_errors=%lu,"
+        "samples=%lu,written=%lu,drop=%lu,bytes=%lu,sync=%lu,"
+        "fifo=%lu,valid=%lu,fast=%lu,last=%lu,eovf=%lu,etag_ovf=%lu,etag_unknown=%lu,"
+        "pll_seen=%lu,pll_edge=%lu,status=0x%06lX\r\n",
+        HAL_GetTick(),
+        g_ecg_rec.state,
+        (unsigned long)SD_DebugLog_CurrentSessionSeq(),
+        (unsigned long)g_ecg_rec.sync_epoch_tick,
+        (unsigned long)g_ecg_rec.ecg_stream_start_tick,
+        (unsigned long)g_ecg_rec.ecg_stream_stop_tick,
+        (unsigned long)g_ecg_rec.mic_power_tick,
+        (unsigned long)g_ecg_rec.mic_file_open_tick,
+        (unsigned long)g_ecg_rec.mic_dma_start_tick,
+        (unsigned long)g_ecg_rec.mic_first_half_tick,
+        (unsigned long)g_ecg_rec.mic_stop_tick,
+        (unsigned long)g_ecg_rec.mic_bytes,
+        (unsigned long)g_ecg_rec.mic_halves,
+        (unsigned long)g_ecg_rec.mic_drops,
+        (unsigned long)g_ecg_rec.mic_write_errors,
+        (unsigned long)g_ecg_rec.ecg_sample_count,
+        (unsigned long)g_ecg_rec.ecg_written_count,
+        (unsigned long)g_ecg_rec.ecg_drop_count,
+        (unsigned long)g_ecg_rec.sd_write_bytes,
+        (unsigned long)g_ecg_rec.sd_sync_count,
+        (unsigned long)g_ecg_rec.fifo_sample_count,
+        (unsigned long)g_ecg_rec.fifo_valid_count,
+        (unsigned long)g_ecg_rec.fifo_fast_count,
+        (unsigned long)g_ecg_rec.fifo_last_count,
+        (unsigned long)g_ecg_rec.fifo_eovf_count,
+        (unsigned long)g_ecg_rec.fifo_etag_overflow_count,
+        (unsigned long)g_ecg_rec.fifo_unknown_etag_count,
+        (unsigned long)g_ecg_rec.pll_status_seen_count,
+        (unsigned long)g_ecg_rec.pll_edge_count,
+        (unsigned long)g_ecg_rec.last_status);
+    if (n > 0 && n < (int)sizeof(buf)) {
+        ring_push(buf, (uint16_t)n);
+    }
 
-    /* SDSTAT: per-path SD write timing diag */
+    /* SDSTAT diag */
     {
         char sdstat[256];
-        int n = snprintf(sdstat, sizeof(sdstat),
-                         "SDSTAT,"
-                         "audio_wait_max=%lu,audio_hold_max=%lu,audio_write_max=%lu,audio_sync_max=%lu,audio_timeout=%lu,audio_bytes=%lu,"
-                         "csv_wait_max=%lu,csv_hold_max=%lu,csv_write_max=%lu,csv_sync_max=%lu,csv_timeout=%lu,"
-                         "debug_wait_max=%lu,debug_hold_max=%lu,debug_write_max=%lu,debug_sync_max=%lu,debug_timeout=%lu",
-                         (unsigned long)g_sd_audio_diag.wait_ms_max,
-                         (unsigned long)g_sd_audio_diag.hold_ms_max,
-                         (unsigned long)g_sd_audio_diag.write_ms_max,
-                         (unsigned long)g_sd_audio_diag.sync_ms_max,
-                         (unsigned long)g_sd_audio_diag.acquire_timeout,
-                         (unsigned long)g_sd_audio_diag.bytes_written,
-                         (unsigned long)g_sd_csv_diag.wait_ms_max,
-                         (unsigned long)g_sd_csv_diag.hold_ms_max,
-                         (unsigned long)g_sd_csv_diag.write_ms_max,
-                         (unsigned long)g_sd_csv_diag.sync_ms_max,
-                         (unsigned long)g_sd_csv_diag.acquire_timeout,
-                         (unsigned long)g_sd_debug_diag.wait_ms_max,
-                         (unsigned long)g_sd_debug_diag.hold_ms_max,
-                         (unsigned long)g_sd_debug_diag.write_ms_max,
-                         (unsigned long)g_sd_debug_diag.sync_ms_max,
-                         (unsigned long)g_sd_debug_diag.acquire_timeout);
+        n = snprintf(sdstat, sizeof(sdstat),
+            "SDSTAT,"
+            "audio_wait_max=%lu,audio_hold_max=%lu,audio_write_max=%lu,audio_sync_max=%lu,audio_timeout=%lu,audio_bytes=%lu,"
+            "csv_wait_max=%lu,csv_hold_max=%lu,csv_write_max=%lu,csv_sync_max=%lu,csv_timeout=%lu,"
+            "debug_wait_max=%lu,debug_hold_max=%lu,debug_write_max=%lu,debug_sync_max=%lu,debug_timeout=%lu",
+            (unsigned long)g_sd_audio_diag.wait_ms_max,
+            (unsigned long)g_sd_audio_diag.hold_ms_max,
+            (unsigned long)g_sd_audio_diag.write_ms_max,
+            (unsigned long)g_sd_audio_diag.sync_ms_max,
+            (unsigned long)g_sd_audio_diag.acquire_timeout,
+            (unsigned long)g_sd_audio_diag.bytes_written,
+            (unsigned long)g_sd_csv_diag.wait_ms_max,
+            (unsigned long)g_sd_csv_diag.hold_ms_max,
+            (unsigned long)g_sd_csv_diag.write_ms_max,
+            (unsigned long)g_sd_csv_diag.sync_ms_max,
+            (unsigned long)g_sd_csv_diag.acquire_timeout,
+            (unsigned long)g_sd_debug_diag.wait_ms_max,
+            (unsigned long)g_sd_debug_diag.hold_ms_max,
+            (unsigned long)g_sd_debug_diag.write_ms_max,
+            (unsigned long)g_sd_debug_diag.sync_ms_max,
+            (unsigned long)g_sd_debug_diag.acquire_timeout);
         if (n > 0 && n < (int)sizeof(sdstat)) {
-            SD_DebugLog_AppendRaw(sdstat);
+            ring_push(sdstat, (uint16_t)n);
         }
     }
 }
 
 void SD_DebugLog_WriteSessionSummary(void)
 {
-#if RECORD_DIAG_DISABLE_SD_DEBUG_LOG || RECORD_DIAG_DISABLE_ALL_SD_WRITES
-    return;
-#endif
     MS_Stats_t stats;
-    FIL file;
-    FRESULT res;
-    UINT bw = 0;
-    char path[32];
-    char line[768];
+    MultiSensorLogger_GetStats(&stats);
+
     uint32_t seq = SD_DebugLog_CurrentSessionSeq();
     uint32_t duration_ms = 0;
     uint32_t mic_ms = 0;
-
-    MultiSensorLogger_GetStats(&stats);
-
     if (g_ecg_rec.ecg_stream_stop_tick > g_ecg_rec.ecg_stream_start_tick) {
         duration_ms = g_ecg_rec.ecg_stream_stop_tick - g_ecg_rec.ecg_stream_start_tick;
     }
     mic_ms = AudioRecorder_GetDurationMs();
 
-    snprintf(line, sizeof(line),
-             "SESSION_FINAL,seq=%lu,ecg_file=ecg_%03lu.csv,mic_file=mic_%03lu.wav,log_file=log_%03lu.txt,"
-             "duration_ms=%lu,ecg_samples=%lu,ecg_write_ok=%lu,ecg_write_fail=%lu,ecg_drop_blk=%lu,"
-             "%s=%lu,%s=%lu,%s=%lu,%s=%lu,"
-             "imu_samples=%lu,imu_write_ok=%lu,imu_write_fail=%lu,imu_drop_blk=%lu,"
-             "mic_bytes=%lu,mic_ms=%lu,mic_halves=%lu,mic_drops=%lu,mic_write_errors=%lu,"
-             "sd_bytes=%lu,sd_sync=%lu,writer_blocks=%lu,diag_case=%d,diag_max_gap_ms=%lu,diag_eint=%lu,diag_sd_mtx_max=%lu,diag_audio_wr_max=%lu",
-             (unsigned long)seq,
-             (unsigned long)seq,
-             (unsigned long)seq,
-             (unsigned long)seq,
-             (unsigned long)duration_ms,
-             (unsigned long)stats.ecg_samples,
-             (unsigned long)stats.ecg_write_ok,
-             (unsigned long)stats.ecg_write_fail,
-             (unsigned long)stats.ecg_block_drop,
-             SESSION_SUMMARY_PPG_SAMPLES_KEY,
-             (unsigned long)stats.ppg_samples,
-             SESSION_SUMMARY_PPG_WRITE_OK_KEY,
-             (unsigned long)stats.ppg_write_ok,
-             SESSION_SUMMARY_PPG_WRITE_FAIL_KEY,
-             (unsigned long)stats.ppg_write_fail,
-             SESSION_SUMMARY_PPG_DROP_BLK_KEY,
-             (unsigned long)stats.ppg_block_drop,
-             (unsigned long)stats.imu_samples,
-             (unsigned long)stats.imu_write_ok,
-             (unsigned long)stats.imu_write_fail,
-             (unsigned long)stats.imu_block_drop,
-             (unsigned long)g_ecg_rec.mic_bytes,
-             (unsigned long)mic_ms,
-             (unsigned long)g_ecg_rec.mic_halves,
-             (unsigned long)g_ecg_rec.mic_drops,
-             (unsigned long)g_ecg_rec.mic_write_errors,
-             (unsigned long)stats.sd_write_bytes,
-             (unsigned long)stats.sd_sync_count,
-             (unsigned long)stats.writer_get_count,
-             (int)RECORD_DIAG_CASE,
-             (unsigned long)g_ecg_rec.diag_max_gap_ms,
-             (unsigned long)g_ecg_rec.diag_eint_hits,
-             (unsigned long)g_ecg_rec.diag_sd_mutex_hold_max_ms,
-             (unsigned long)g_ecg_rec.diag_audio_write_max_ms);
-    SD_DebugLog_WriteLine(line);
-
-    snprintf(path, sizeof(path), "0:/session_%03lu.txt", (unsigned long)seq);
-
-    if (Mtx_SDCardHandle != NULL) {
-        if (osMutexAcquire(Mtx_SDCardHandle, pdMS_TO_TICKS(20)) != osOK) {
-            g_sd_debug_diag.acquire_timeout++;
-            Safe_USB_Printf("[SDDBG][ERR] session mutex timeout path=%s\r\n", path);
-            return;
-        }
-    }
-
-    res = f_mount(&SDFatFS, SDPath, 1);
-    if (res == FR_OK) {
-        res = f_open(&file, path, FA_CREATE_ALWAYS | FA_WRITE);
-        if (res == FR_OK) {
-            int n = snprintf(line, sizeof(line),
-                             "seq=%lu\r\n"
-                             "ecg_file=0:/ecg_%03lu.csv\r\n"
-                             "mic_file=0:/mic_%03lu.wav\r\n"
-                             "log_file=0:/log_%03lu.txt\r\n"
-                             "duration_ms=%lu\r\n"
-                             "ecg_samples=%lu\r\n"
-                             "ecg_write_ok=%lu\r\n"
-                             "ecg_write_fail=%lu\r\n"
-                             "ecg_block_drop=%lu\r\n"
-                             "%s=%lu\r\n"
-                             "%s=%lu\r\n"
-                             "%s=%lu\r\n"
-                             "%s=%lu\r\n"
-                             "imu_samples=%lu\r\n"
-                             "imu_write_ok=%lu\r\n"
-                             "imu_write_fail=%lu\r\n"
-                             "imu_block_drop=%lu\r\n"
-                             "mic_bytes=%lu\r\n"
-                             "mic_ms=%lu\r\n"
-                             "mic_halves=%lu\r\n"
-                             "mic_drops=%lu\r\n"
-                             "mic_write_errors=%lu\r\n"
-                             "sd_write_bytes=%lu\r\n"
-                             "sd_sync_count=%lu\r\n"
-                             "writer_blocks=%lu,diag_case=%d,diag_max_gap_ms=%lu,diag_eint=%lu,diag_sd_mtx_max=%lu,diag_audio_wr_max=%lu\r\n",
-                             (unsigned long)seq,
-                             (unsigned long)seq,
-                             (unsigned long)seq,
-                             (unsigned long)seq,
-                             (unsigned long)duration_ms,
-                             (unsigned long)stats.ecg_samples,
-                             (unsigned long)stats.ecg_write_ok,
-                             (unsigned long)stats.ecg_write_fail,
-                             (unsigned long)stats.ecg_block_drop,
-                             SESSION_SUMMARY_PPG_SAMPLES_KEY,
-                             (unsigned long)stats.ppg_samples,
-                             SESSION_SUMMARY_PPG_WRITE_OK_KEY,
-                             (unsigned long)stats.ppg_write_ok,
-                             SESSION_SUMMARY_PPG_WRITE_FAIL_KEY,
-                             (unsigned long)stats.ppg_write_fail,
-                             SESSION_SUMMARY_PPG_DROP_BLK_KEY,
-                             (unsigned long)stats.ppg_block_drop,
-                             (unsigned long)stats.imu_samples,
-                             (unsigned long)stats.imu_write_ok,
-                             (unsigned long)stats.imu_write_fail,
-                             (unsigned long)stats.imu_block_drop,
-                             (unsigned long)g_ecg_rec.mic_bytes,
-                             (unsigned long)mic_ms,
-                             (unsigned long)g_ecg_rec.mic_halves,
-                             (unsigned long)g_ecg_rec.mic_drops,
-                             (unsigned long)g_ecg_rec.mic_write_errors,
-                             (unsigned long)stats.sd_write_bytes,
-                             (unsigned long)stats.sd_sync_count,
-                             (unsigned long)stats.writer_get_count,
-             (int)RECORD_DIAG_CASE,
-             (unsigned long)g_ecg_rec.diag_max_gap_ms,
-             (unsigned long)g_ecg_rec.diag_eint_hits,
-             (unsigned long)g_ecg_rec.diag_sd_mutex_hold_max_ms,
-             (unsigned long)g_ecg_rec.diag_audio_write_max_ms);
-            if (n > 0 && n < (int)sizeof(line)) {
-                res = f_write(&file, line, (UINT)n, &bw);
-                (void)bw;
-            }
-            f_sync(&file);
-            f_close(&file);
-        }
-    }
-
-    if (Mtx_SDCardHandle != NULL) {
-        osMutexRelease(Mtx_SDCardHandle);
-    }
-
-    if (res == FR_OK) {
-        Safe_USB_Printf("[SESSION] summary saved path=%s\r\n", path);
-    } else {
-        Safe_USB_Printf("[SESSION][ERR] summary path=%s res=%d\r\n", path, res);
+    char buf[800];
+    int n = snprintf(buf, sizeof(buf),
+        "SESSION_FINAL,seq=%lu,ecg_file=ecg_%03lu.csv,mic_file=mic_%03lu.wav,log_file=log_%03lu.txt,"
+        "duration_ms=%lu,ecg_samples=%lu,ecg_write_ok=%lu,ecg_write_fail=%lu,ecg_drop_blk=%lu,"
+        "%s=%lu,%s=%lu,%s=%lu,%s=%lu,"
+        "imu_samples=%lu,imu_write_ok=%lu,imu_write_fail=%lu,imu_drop_blk=%lu,"
+        "mic_bytes=%lu,mic_ms=%lu,mic_halves=%lu,mic_drops=%lu,mic_write_errors=%lu,"
+        "sd_bytes=%lu,sd_sync=%lu,writer_blocks=%lu,diag_case=%d,diag_max_gap_ms=%lu,diag_eint=%lu,diag_sd_mtx_max=%lu,diag_audio_wr_max=%lu",
+        (unsigned long)seq, (unsigned long)seq, (unsigned long)seq, (unsigned long)seq,
+        (unsigned long)duration_ms,
+        (unsigned long)stats.ecg_samples, (unsigned long)stats.ecg_write_ok,
+        (unsigned long)stats.ecg_write_fail, (unsigned long)stats.ecg_block_drop,
+        SESSION_SUMMARY_PPG_SAMPLES_KEY, (unsigned long)stats.ppg_samples,
+        SESSION_SUMMARY_PPG_WRITE_OK_KEY, (unsigned long)stats.ppg_write_ok,
+        SESSION_SUMMARY_PPG_WRITE_FAIL_KEY, (unsigned long)stats.ppg_write_fail,
+        SESSION_SUMMARY_PPG_DROP_BLK_KEY, (unsigned long)stats.ppg_block_drop,
+        (unsigned long)stats.imu_samples, (unsigned long)stats.imu_write_ok,
+        (unsigned long)stats.imu_write_fail, (unsigned long)stats.imu_block_drop,
+        (unsigned long)g_ecg_rec.mic_bytes, (unsigned long)mic_ms,
+        (unsigned long)g_ecg_rec.mic_halves, (unsigned long)g_ecg_rec.mic_drops,
+        (unsigned long)g_ecg_rec.mic_write_errors,
+        (unsigned long)stats.sd_write_bytes, (unsigned long)stats.sd_sync_count,
+        (unsigned long)stats.writer_get_count,
+        (int)RECORD_DIAG_CASE,
+        (unsigned long)g_ecg_rec.diag_max_gap_ms,
+        (unsigned long)g_ecg_rec.diag_eint_hits,
+        (unsigned long)g_ecg_rec.diag_sd_mutex_hold_max_ms,
+        (unsigned long)g_ecg_rec.diag_audio_write_max_ms);
+    if (n > 0 && n < (int)sizeof(buf)) {
+        ring_push(buf, (uint16_t)n);
     }
 }
 
+/* --- Flush control --- */
+void SD_DebugLog_RequestStopFlush(void)
+{
+    s_stop_flush_requested = 1;
+}
 
+uint8_t SD_DebugLog_IsFlushComplete(void)
+{
+    return (ring_count() == 0) ? 1 : 0;
+}
 
+/* ================================================================
+ * DebugLogWriter Task ? low priority, batch SD writes
+ * ================================================================ */
+void DebugLogWriter_Task(void *argument)
+{
+    (void)argument;
+    s_writer_task_handle = xTaskGetCurrentTaskHandle();
+    FIL file;
+    uint8_t file_open = 0;
+    uint32_t last_flush_tick = 0;
 
+    /* small delay for system init */
+    osDelay(100);
 
+    for (;;) {
+        uint32_t count = ring_count();
 
+        if (count == 0U) {
+            if (s_stop_flush_requested) {
+                /* all flushed, done */
+                s_stop_flush_requested = 0;
+            }
+            osDelay(50);
+            continue;
+        }
 
+        uint32_t now = HAL_GetTick();
+        uint8_t should_flush = 0;
 
+        /* flush when: buffer > 50% full OR 1s elapsed OR stop requested */
+        if (count > DEBUG_RING_SLOTS / 2) {
+            should_flush = 1;
+        } else if (now - last_flush_tick >= DEBUG_FLUSH_MS) {
+            should_flush = 1;
+        } else if (s_stop_flush_requested) {
+            should_flush = 1;
+        }
 
+        if (!should_flush) {
+            osDelay(20);
+            continue;
+        }
+
+        /* --- Batch flush to SD --- */
+        if (Mtx_SDCardHandle != NULL) {
+            if (osMutexAcquire(Mtx_SDCardHandle, pdMS_TO_TICKS(10)) != osOK) {
+                /* mutex busy ? retry later, don't block ECG */
+                osDelay(50);
+                continue;
+            }
+        }
+
+        /* open file if needed */
+        if (!file_open) {
+            FRESULT res = f_open(&file, s_sd_debug_log_path,
+                                 FA_OPEN_APPEND | FA_WRITE | FA_OPEN_ALWAYS);
+            if (res == FR_OK) {
+                file_open = 1;
+            } else {
+                if (Mtx_SDCardHandle != NULL) osMutexRelease(Mtx_SDCardHandle);
+                osDelay(100);
+                continue;
+            }
+        }
+
+        /* flush up to DEBUG_FLUSH_BATCH lines */
+        uint32_t flushed = 0;
+        char line[DEBUG_RING_SLOT_SZ + 4];
+        while (flushed < DEBUG_FLUSH_BATCH && ring_count() > 0) {
+            if (ring_pop(line, sizeof(line))) {
+                debug_flush_one_line(&file, line);
+                flushed++;
+            }
+        }
+
+        if (flushed > 0) {
+            f_sync(&file);
+            f_close(&file);
+            file_open = 0;
+            last_flush_tick = HAL_GetTick();
+        }
+
+        if (Mtx_SDCardHandle != NULL) {
+            osMutexRelease(Mtx_SDCardHandle);
+        }
+
+        /* if stop requested and ring is empty, close file */
+        if (s_stop_flush_requested && ring_count() == 0 && file_open) {
+            if (Mtx_SDCardHandle != NULL) {
+                osMutexAcquire(Mtx_SDCardHandle, pdMS_TO_TICKS(50));
+            }
+            f_sync(&file);
+            f_close(&file);
+            file_open = 0;
+            s_stop_flush_requested = 0;
+            if (Mtx_SDCardHandle != NULL) {
+                osMutexRelease(Mtx_SDCardHandle);
+            }
+        }
+    }
+}

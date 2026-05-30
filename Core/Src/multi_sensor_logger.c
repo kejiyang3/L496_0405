@@ -83,6 +83,7 @@ static void submit_ecg_block(uint16_t count)
 
     if (!s_ecg_block_free[next]) {
         s_ecg_block_drop++;
+    g_ecg_rec.ecg_pack_drop_blocks++;
         s_ecg_submit_fail++;
         Safe_USB_Printf("[MS_SUBMIT][ERR] next busy idx=%u next=%u count=%u drop=%lu\r\n",
                         idx, next, count, (unsigned long)s_ecg_block_drop);
@@ -98,6 +99,7 @@ static void submit_ecg_block(uint16_t count)
         s_ecg_active = next;
         s_ecg_block_free[idx] = 0;
         s_ecg_submit_ok++;
+        g_ecg_rec.ecg_queue_submit_ok++;
 #if MS_USB_VERBOSE
         Safe_USB_Printf("[MS_SUBMIT] ECG ok idx=%u count=%u q=%lu ok=%lu\r\n",
                         idx, count,
@@ -107,6 +109,7 @@ static void submit_ecg_block(uint16_t count)
     } else {
         s_ecg_block_drop++;
         s_ecg_submit_fail++;
+        g_ecg_rec.ecg_queue_submit_fail++;
         Safe_USB_Printf("[MS_SUBMIT][ERR] queue put fail idx=%u count=%u q=%lu fail=%lu\r\n",
                         idx, count,
                         (unsigned long)osMessageQueueGetCount(Q_MultiSensorBlockHandle),
@@ -190,6 +193,7 @@ void MultiSensorLogger_AddECG(int16_t ecg)
 
     if (blk->count >= ECG_BLOCK_SAMPLES) {
         submit_ecg_block(blk->count);
+        g_ecg_rec.ecg_pack_blocks++;
     }
 }
 
@@ -614,6 +618,7 @@ void StartTask_MultiSensor_SDWriter(void *argument)
             if (osMessageQueueGet(Q_MultiSensorBlockHandle, &msg, NULL,
                                   pdMS_TO_TICKS(50)) == osOK) {
                 s_writer_get_count++;
+                g_ecg_rec.ecg_writer_get_blocks++;
 #if MS_USB_VERBOSE
                 Safe_USB_Printf("[MS_WRITER] got type=%u idx=%u count=%u q=%lu got=%lu\r\n",
                                 (unsigned int)msg.type,

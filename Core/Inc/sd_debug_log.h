@@ -15,6 +15,10 @@ void SD_DebugLog_WriteEvent(const char *tag, uint32_t value);
 void SD_DebugLog_WriteSnapshot(void);
 void SD_DebugLog_WriteSessionSummary(void);
 
+void DebugLogWriter_Task(void *argument);
+void SD_DebugLog_RequestStopFlush(void);
+uint8_t SD_DebugLog_IsFlushComplete(void);
+
 #ifdef __cplusplus
 }
 #endif

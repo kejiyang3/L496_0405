@@ -1,0 +1,102 @@
+[22:56:44.850] ❌ 连接失败，重试中...
+[22:56:45.490] ✅ 连接成功，开始接收数据
+[22:56:48.259] ⚠ 串口异常: ClearCommError failed (PermissionError(13, '设备不识别此命令。', None, 22))
+[22:56:48.259] ⚠ 连接断开，等待重连...
+[22:56:48.537] ❌ 连接失败，重试中...
+[22:56:51.847] ❌ 连接失败，重试中...
+[22:56:55.116] ❌ 连接失败，重试中...
+[22:56:58.381] ❌ 连接失败，重试中...
+[22:57:00.436] ✅ 连接成功，开始接收数据
+[22:57:00.436] 📈 累计重连次数: 2
+[22:57:02.904] [SYS] RTOS Started, USB CDC Ready!
+[22:57:02.905] [ECG_V1] Sensor task started
+[22:57:03.358] [MAX30102] Init done. Cleared initial INT status: 0x00
+[22:57:03.358] [DIAG] MAX30102 REG DUMP:
+[22:57:03.359]   - INT_EN1 (0x02) = 0x00 (Expect 0xC0: A_FULL|PPG_RDY)
+[22:57:03.359]   - INT_EN2 (0x03) = 0x00
+[22:57:03.359]   - FIFO_CFG(0x08) = 0x5F
+[22:57:03.359]   - MODE_CFG(0x09) = 0x03 (Expect 0x03 for SpO2)
+[22:57:03.404]   - SPO2_CFG(0x0A) = 0x22
+[22:57:03.404]   - LED1_PA (0x0C) = 0x2F (Must not be 0x00)
+[22:57:03.404] [DIAG] FIFO Write Pointer: T1=0, T2=0
+[22:57:03.404] [DIAG] FATAL: FIFO NOT updating. Check MODE and LED PA.
+[22:57:03.404] [SENSOR_INIT]
+[22:57:03.404] [MAX30102] I2C CALL OK, INIT OK
+[22:57:03.435] [ICM20948] INIT OK (WHO_AM_I + 10x probe passed)
+[22:57:03.435] [/SENSOR_INIT]
+[22:57:03.436] [SENSOR] before MAX30003_Init
+[22:57:03.467] [MAX30003] Initializing...
+[22:57:03.467] [MAX30003_INIT] step=cs
+[22:57:03.468] [MAX30003_INIT] step=sw_reset
+[22:57:03.468] [MAX30003_INIT] step=status1
+[22:57:03.468] [MAX30003_INIT] step=status2
+[22:57:03.469] [MAX30003_INIT] step=info1
+[22:57:03.469] [MAX30003_INIT] step=info2
+[22:57:03.469] [MAX30003_INIT] step=info3
+[22:57:03.482] [MAX30003] INFO=0x513639
+[22:57:03.483] [MAX30003_INIT] step=cnfg_ecg
+[22:57:03.483] [MAX30003][OK] CNFG_ECG = 0x425000
+[22:57:03.483] [MAX30003_INIT] step=cnfg_gen
+[22:57:03.484] [MAX30003][OK] CNFG_GEN = 0x281217
+[22:57:03.484] [MAX30003][OK] CNFG_CAL = 0x000000
+[22:57:03.484] [MAX30003][OK] CNFG_EMUX = 0x000000
+[22:57:03.484] [MAX30003_INIT] step=mngr_dyn_skip
+[22:57:03.484] [MAX30003_INIT] step=pll_wait
+[22:57:03.485] [MAX30003][OK] PLL locked, STATUS=0x000000
+[22:57:03.485] [MAX30003_INIT] step=en_int
+[22:57:03.485] [MAX30003][OK] EN_INT = 0x000002
+[22:57:03.485] [MAX30003_INIT] step=mngr_int
+[22:57:03.485] [MAX30003][OK] MNGR_INT = 0x200000
+[22:57:03.514] [MAX30003] Init done. STATUS=0x000000
+[22:57:03.514] [SENSOR] after MAX30003_Init
+[22:57:03.515] [SENSOR] after MAX30003_INIT_DONE log
+[22:57:03.606] [SDDBG] new log opened path=0:/log_001.txt
+[22:57:03.606] [MS_SD] mount begin file=0:/ecg_001.csv
+[22:57:03.606] [MS_SD] mount ok
+[22:57:03.654] [MS_SD] open begin file=0:/ecg_001.csv
+[22:57:03.654] [MS_SD] open ok
+[22:57:03.654] [MS_SD] header ok bw=41
+[22:57:03.655] [MS_SD] first sync res=0
+[22:57:03.779] [MS_SD] file opened and released
+[22:57:03.779] [REC] record start file_opened=1 tick=3796
+[22:57:03.779] [MIC] open ok file=0:/mic_001.wav
+[22:57:03.779] [REC] before MAX30003_StartStream tick=3917
+[22:57:03.780] [MAX30003_INIT] step=fifo_synch
+[22:57:03.780] [MAX30003] StartStream status1=0x100109 status2=0x100009 status3=0x100009
+[22:57:03.794] [REC] after MAX30003_StartStream tick=3927 start_tick=3918
+[22:57:03.794] [MIC] dma_start ret=0 words=16384 bytes=65536
+[22:57:03.934] [SDDBG][ERR] open path=0:/log_001.txt res=18
+[22:57:04.951] [SDDBG][ERR] open path=0:/log_001.txt res=18
+[22:57:06.012] [SDDBG][ERR] open path=0:/log_001.txt res=18
+[22:57:07.027] [SDDBG][ERR] open path=0:/log_001.txt res=18
+[22:57:08.057] [SDDBG][ERR] open path=0:/log_001.txt res=18
+[22:57:09.107] [SDDBG][ERR] open path=0:/log_001.txt res=18
+[22:57:10.136] [SDDBG][ERR] open path=0:/log_001.txt res=18
+[22:57:11.175] [SDDBG][ERR] open path=0:/log_001.txt res=18
+[22:57:12.208] [SDDBG][ERR] open path=0:/log_001.txt res=18
+[22:57:13.259] [SDDBG][ERR] open path=0:/log_001.txt res=18
+[22:57:14.280] [SDDBG][ERR] open path=0:/log_001.txt res=18
+[22:57:15.312] [SDDBG][ERR] open path=0:/log_001.txt res=18
+[22:57:16.364] [SDDBG][ERR] open path=0:/log_001.txt res=18
+[22:57:17.412] [SDDBG][ERR] open path=0:/log_001.txt res=18
+[22:57:18.414] [SDDBG][ERR] open path=0:/log_001.txt res=18
+[22:57:19.457] [SDDBG][ERR] open path=0:/log_001.txt res=18
+[22:57:20.481] [SDDBG][ERR] open path=0:/log_001.txt res=18
+[22:57:21.528] [SDDBG][ERR] open path=0:/log_001.txt res=18
+[22:57:22.562] [SDDBG][ERR] open path=0:/log_001.txt res=18
+[22:57:23.576] [SDDBG][ERR] open path=0:/log_001.txt res=18
+[22:57:24.636] [SDDBG][ERR] open path=0:/log_001.txt res=18
+[22:57:25.655] [SDDBG][ERR] open path=0:/log_001.txt res=18
+[22:57:26.708] [SDDBG][ERR] open path=0:/log_001.txt res=18
+[22:57:27.727] [SDDBG][ERR] open path=0:/log_001.txt res=18
+[22:57:28.749] [SDDBG][ERR] open path=0:/log_001.txt res=18
+[22:57:29.807] [SDDBG][ERR] open path=0:/log_001.txt res=18
+[22:57:30.860] [SDDBG][ERR] open path=0:/log_001.txt res=18
+[22:57:31.888] [SDDBG][ERR] open path=0:/log_001.txt res=18
+[22:57:32.906] [SDDBG][ERR] open path=0:/log_001.txt res=18
+[22:57:33.914] [ECG_AUTO_STOP] t=33921
+[22:57:33.914] [MAX30003] StopStream done. STATUS=0x100109
+[22:57:33.915] [REC_STOP]
+[22:57:34.055] [MS_SD] close final_sync=0 close=0 bytes=255553 ecg_written=6005
+[22:57:34.055] [MIC] close seek=0 write=0 bw=44 sync=0 close=0 bytes=507904 halves=62 drops=0 timeout=0 maxwr=31
+[22:57:34.134] [SESSION] summary saved path=0:/session_001.txt

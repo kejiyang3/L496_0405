@@ -1,4 +1,4 @@
-﻿#ifndef __ECG_RECORD_CONTROL_H__
+#ifndef __ECG_RECORD_CONTROL_H__
 #define __ECG_RECORD_CONTROL_H__
 
 #ifdef __cplusplus
@@ -76,10 +76,21 @@ typedef struct {
     volatile uint32_t diag_task_calls;
     volatile uint32_t diag_eint_hits;
     volatile uint32_t diag_max_gap_ms;
+    volatile uint32_t diag_max_gap_recording_ms;
     volatile uint32_t diag_last_call_tick;
+    volatile uint32_t diag_last_recording_tick;
     volatile uint32_t diag_irq_snapshot;
     volatile uint32_t diag_notify_timeouts;
     volatile uint32_t diag_notify_wakes;
+
+    /* Pack/submit diagnostics */
+    volatile uint32_t ecg_pack_blocks;
+    volatile uint32_t ecg_pack_drop_blocks;
+    volatile uint32_t ecg_queue_submit_ok;
+    volatile uint32_t ecg_queue_submit_fail;
+    volatile uint32_t ecg_writer_get_blocks;
+    volatile uint32_t ecg_sd_write_ok;
+    volatile uint32_t ecg_sd_write_fail;
 
     /* ETAG histogram */
     volatile uint32_t etag_hist[8];
@@ -110,6 +121,12 @@ typedef struct {
 
     /* === Diagnostic: SD mutex + audio write timing === */
     volatile uint32_t diag_sd_mutex_hold_max_ms;
+    volatile uint32_t diag_sensor_task_loop_us_max;
+    volatile uint32_t diag_sensor_task_loop_us_last;
+    volatile uint32_t diag_max3003_task_us_max;
+    volatile uint32_t diag_max3003_task_us_last;
+    volatile uint32_t diag_sd_write_block_us_max;
+    volatile uint32_t diag_sd_write_block_us_last;
     volatile uint32_t diag_audio_write_max_ms;
     volatile uint32_t diag_sd_mutex_contention_count;
 
