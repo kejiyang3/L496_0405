@@ -1,4 +1,0 @@
-interface:
-  display_name: "L496 项目管理 (codex2)"
-  short_description: "L496可穿戴设备项目管理：INBOX分拣、变更卡、飞书同步、闭环验证"
-  default_prompt: "以codex2身份管理L496项目，检查INBOX、飞书表格、变更记录"
