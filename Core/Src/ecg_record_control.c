@@ -3,6 +3,8 @@
 #include "main.h"
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
+#include "ff.h"
 
 
 SD_PathDiag_t g_sd_audio_diag = {0};
@@ -47,8 +49,33 @@ ECG_RecordControl_t g_ecg_rec = {
 /* 鏍规嵁褰撳墠 file_seq 鏇存柊 file_name */
 void ECG_UpdateFileName(void)
 {
+    /* 读取序号文件，递增后写入，避免目录扫描 */
+    {
+        FIL f;
+        UINT br;
+        uint32_t saved = 0;
+        if (f_open(&f, "0:/seq_counter.txt", FA_READ) == FR_OK) {
+            char buf[16] = {0};
+            f_read(&f, buf, sizeof(buf)-1, &br);
+            f_close(&f);
+            saved = (uint32_t)strtoul(buf, NULL, 10);
+        }
+        if (saved >= g_ecg_rec.file_seq) {
+            g_ecg_rec.file_seq = saved + 1U;
+        }
+        /* 写入新序号 */
+        {
+            char buf[16];
+            int n = snprintf(buf, sizeof(buf), "%lu", (unsigned long)g_ecg_rec.file_seq);
+            if (n > 0 && f_open(&f, "0:/seq_counter.txt", FA_CREATE_ALWAYS | FA_WRITE) == FR_OK) {
+                f_write(&f, buf, (UINT)n, &br);
+                f_close(&f);
+            }
+        }
+    }
     snprintf(g_ecg_rec.file_name, sizeof(g_ecg_rec.file_name),
              "0:/ecg_%03lu.csv", g_ecg_rec.file_seq);
+    g_ecg_rec.file_seq++;  /* 下一轮递增 */
 }
 
 void ECG_RequestStart(void)
