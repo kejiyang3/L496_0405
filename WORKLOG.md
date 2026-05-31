@@ -1,4 +1,4 @@
-# Codex Worklog
+﻿# Codex Worklog
 
 Purpose: keep the project recoverable when a Codex conversation gets long or compact fails.
 
@@ -258,8 +258,45 @@ Paste this into a new Codex conversation when the current one gets long:
 ## 2026-05-31 Session 2: Handoff Review + Config Normalization
 
 - Reviewed all three handoff documents: delivered full status summary to user.
-- Code commit (6134c1a): RECORD_DIAG_CASE=6, RECORD_EXP_MIC_STALL_MODE=0 �� NORMAL mode, ready for MIC reintroduction experiments.
+- Code commit (6134c1a): RECORD_DIAG_CASE=6, RECORD_EXP_MIC_STALL_MODE=0 �� NORMAL mode, ready for MIC reintroduction experiments.
 - Feishu sync: NO.019 change record added (config normalization commit).
 - No experiment execution today. All three-device matrices remain pending.
-- Key reminder: �����ļ��� (config freeze longrun) and �����ļ��� (MIC reintroduction) still need hardware execution on device 1.
+- Key reminder: �����ļ��� (config freeze longrun) and �����ļ��� (MIC reintroduction) still need hardware execution on device 1.
+
+
+## 2026-05-31: MIC Controlled Reintroduction �� COMPLETED
+
+All 9 experiments from experiments/DEVICE1_MIC_CONTROLLED_REINTRODUCTION_ON_V03.md executed on device 1 with real SD CSV evidence.
+
+**Code fix:** RECORD_AUDIO_ERROR_REQUESTS_STOP 1��0 (MIC errors no longer terminate three-modal session) + audio_open_file mutex timeout 100ms��20ms.
+
+**Results (all CORE PASS):**
+| Exp | Dur | ECG Hz | PPG Hz | IMU Hz | i2c | sd | MIC |
+|-----|-----|--------|--------|--------|-----|-----|-----|
+| A1  | 92s | 488.65 | 50.39  | 104.24 | 0 | 0 | OFF |
+| A2  | 92s | 488.69 | 50.40  | 104.24 | 0 | 0 | OFF |
+| A3  | 92s | 488.57 | 50.39  | 104.24 | 0 | 0 | OFF |
+| M0  | 92s | 483.03 | 50.25  | 104.24 | 0 | 0 | DMA |
+| M1  | 92s | 489.36 | 50.34  | 104.23 | 0 | 0 | WAV |
+| M2-1| 90s | 489.3  | 50.3   | 104.1  | 0 | 0 | WAV |
+| M2-2| 90s | 489.3  | 50.4   | 104.2  | 0 | 0 | WAV |
+| M2-3| 92s | 488.9  | 50.3   | 104.1  | 0 | 0 | WAV |
+| M3  |300s | 488.9  | 50.2   | 104.2  | 0 | 0 | WAV |
+
+**Final: CORE PASS, MIC WARN (2 blocks dropped per run, no core impact).**
+MIC successfully reintroduced on v0.3 three-modal stable baseline.
+
+Evidence: sd_mic_A1 through sd_mic_M3 directories. GitHub: c98362a (fix) + 4daa331 (config restore).
+Feishu: NO.020 + NO.021 change records.
+
+
+## 2026-06-01: 实验文件整理 + 报告汇总
+
+- 整理 experiments/ 文件夹：将散落的 DEVICE1_WITH_MIC_1H_LONGRUN (1).md 移入并重命名为 DEVICE1_WITH_MIC_1H_LONGRUN.md。
+- 生成统一实验报告：experiments/EXPERIMENT_SUMMARY.md，汇总全部4个交接文件的实验结果。
+- 交接文件一（PPG/ICM隔离）：7组实验 ✅
+- 交接文件二（配置冻结长测）：A1-3/B1-3/C1 全部PASS ✅ → v0.3-core-three-modal-stable
+- 交接文件三（MIC受控接入）：9轮 CORE全PASS, MIC WARN ✅
+- 交接文件四（with-MIC 1H长测）：10min预跑+1h长测, CORE PASS ✅
+- 当前 experiments/ 目录含4份交接文件 + 1份汇总报告。
 
