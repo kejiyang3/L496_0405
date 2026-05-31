@@ -250,7 +250,7 @@ static uint8_t audio_open_file(uint32_t seq)
     /* F2: skip WAV header entirely, just open raw file */
     (void)hdr;
     if (Mtx_SDCardHandle != NULL) {
-        if (osMutexAcquire(Mtx_SDCardHandle, pdMS_TO_TICKS(100)) != osOK) {
+        if (osMutexAcquire(Mtx_SDCardHandle, pdMS_TO_TICKS(20)) != osOK) {
             Safe_USB_Printf("[MIC][ERR] mutex timeout before open\r\n");
             return 0;
         }
@@ -269,7 +269,7 @@ static uint8_t audio_open_file(uint32_t seq)
     build_wav_header(hdr, 0, AUDIO_SAMPLE_RATE_HZ);
 
     if (Mtx_SDCardHandle != NULL) {
-        if (osMutexAcquire(Mtx_SDCardHandle, pdMS_TO_TICKS(100)) != osOK) {
+        if (osMutexAcquire(Mtx_SDCardHandle, pdMS_TO_TICKS(20)) != osOK) {
             Safe_USB_Printf("[MIC][ERR] mutex timeout before open\r\n");
             return 0;
         }
@@ -340,7 +340,7 @@ static void audio_close_file(void)
     /* F2: skip header update, just close */
     (void)hdr;
     if (Mtx_SDCardHandle != NULL) {
-        if (osMutexAcquire(Mtx_SDCardHandle, pdMS_TO_TICKS(100)) != osOK) {
+        if (osMutexAcquire(Mtx_SDCardHandle, pdMS_TO_TICKS(20)) != osOK) {
             s_audio_mutex_timeouts++;
             s_audio_file_open = 0;
             return;
@@ -352,7 +352,7 @@ static void audio_close_file(void)
     build_wav_header(hdr, s_audio_bytes, RECORD_MIC_SAMPLE_RATE_HZ);
 
     if (Mtx_SDCardHandle != NULL) {
-        if (osMutexAcquire(Mtx_SDCardHandle, pdMS_TO_TICKS(100)) != osOK) {
+        if (osMutexAcquire(Mtx_SDCardHandle, pdMS_TO_TICKS(20)) != osOK) {
             s_audio_mutex_timeouts++;
             s_audio_file_open = 0;
             return;

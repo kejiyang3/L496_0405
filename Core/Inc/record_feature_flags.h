@@ -9,7 +9,7 @@
 
 /* ===== MAX30003 + AudioTask / MIC Conflict Diagnostic ===== */
 /* RECORD_DIAG_CASE: 0=normal, 1=CaseA, 2=CaseB, 3=CaseC, 4=CaseD, 5=CaseE, 6=CaseF */
-#define RECORD_DIAG_CASE 0  /* v0.3 M1: All MIC ON (WAV low-pri) */
+#define RECORD_DIAG_CASE 6  /* M1: MIC WAV low-priority */
 
 #if RECORD_DIAG_CASE >= 1
   /* Case mode: each case enables exactly one additional layer vs Case A */
@@ -44,7 +44,7 @@
 #define RECORD_PPG_I2C_TIMEOUT_MS 25U
 #define RECORD_FAIL_FAST_ON_MODALITY_ERROR 1
 #define RECORD_AUDIO_REOPEN_SAME_SEQ_ALLOWED 0
-#define RECORD_AUDIO_ERROR_REQUESTS_STOP 1
+#define RECORD_AUDIO_ERROR_REQUESTS_STOP 0  /* MIC errors musn`t stop three-modal session */
 #define RECORD_REQUIRE_PPG_FOR_FOUR_MODAL 0
 #define RECORD_REQUIRE_ICM_FOR_FOUR_MODAL 0
 #define RECORD_FAIL_STREAK_RESETS_WHEN_IDLE 1
