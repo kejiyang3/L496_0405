@@ -43,7 +43,7 @@
 | 构建 | CMake + Ninja + arm-none-eabi-gcc 14.3.1 |
 | 工具链 | GNU Tools for STM32 (STM32Cube bundle) |
 | UI | LVGL v8.3.11 |
-| 当前版本 | v0.3 (baseline) |
+| 当前版本 | **v0.3-core-three-modal-stable** |
 | Flash 占用 | ~402 KB / 512 KB (78.5%) |
 | RAM 占用 | ~237 KB / 320 KB (90.3%) |
 

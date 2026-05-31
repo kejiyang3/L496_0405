@@ -21,6 +21,7 @@
 
 extern osMutexId_t Mtx_SDCardHandle;
 extern void Safe_USB_Printf(const char *format, ...);
+extern DMA_HandleTypeDef hdma_sai1_a;
 
 #define AUDIO_SAMPLE_RATE_HZ RECORD_MIC_SAMPLE_RATE_HZ
 #define AUDIO_USB_VERBOSE           0
@@ -56,6 +57,9 @@ static volatile uint32_t s_audio_failed_seq = 0;
 static int16_t s_pcm_half[AUDIO_PCM_HALF_SAMPLES];
 
 AudioRunDiag_t g_audio_run_diag = {0};
+AudioStallCapture_t g_audio_stall_captures[AUDIO_STALL_CAPTURE_COUNT] = {0};
+volatile uint32_t g_audio_stall_capture_count = 0;
+
 
 static void build_wav_header(uint8_t hdr[44], uint32_t data_bytes, uint32_t sample_rate_hz);
 
@@ -342,6 +346,7 @@ static void audio_close_file(void)
             return;
         }
     }
+    AudioStallCapture_LogAll();
     close_res = f_close(&s_audio_file); if(s_audio_blocks_open){f_close(&s_audio_blocks_file);s_audio_blocks_open=0;}
 #else
     build_wav_header(hdr, s_audio_bytes, RECORD_MIC_SAMPLE_RATE_HZ);
@@ -697,7 +702,7 @@ void AudioRecorder_Task(void *argument)
 
 
 
-/* ===== AUDIO_RUN 诊断实现 ===== */
+/* ===== AUDIO_RUN 璇婃柇瀹炵幇 ===== */
 
 void AudioRunDiag_Reset(void)
 {
@@ -726,4 +731,62 @@ void AudioRunDiag_LogSnapshot(void)
              (unsigned long)g_audio_run_diag.wav_file_open,
              (unsigned long)g_audio_run_diag.wav_data_bytes);
     SD_DebugLog_WriteLine(line);
+}
+
+/* ===== AUDIO_STALL Capture ===== */
+
+void AudioStallCapture_Snapshot(uint32_t reason, uint32_t halves, uint32_t timeout_count)
+{
+    uint32_t idx = g_audio_stall_capture_count;
+    if (idx >= AUDIO_STALL_CAPTURE_COUNT) return;
+    AudioStallCapture_t *cap = &g_audio_stall_captures[idx];
+    cap->capture_tick = HAL_GetTick();
+    cap->capture_seq = idx + 1;
+    cap->stall_reason = reason;
+    cap->s_audio_halves = halves;
+    cap->stall_timeout_count = timeout_count;
+    cap->dma_ccr = DMA2_Channel6->CCR;
+    cap->dma_cndtr = DMA2_Channel6->CNDTR;
+    cap->dma_isr_chan = (DMA2->ISR >> 16U) & 0x1FU;
+    cap->dmamux_ccr = 0;
+    cap->sai_sr = SAI1_Block_A->SR;
+    cap->sai_cr1 = SAI1_Block_A->CR1;
+    cap->sai_cr2 = SAI1_Block_A->CR2;
+    cap->hal_sai_state = (uint32_t)hsai_BlockA1.State;
+    cap->hal_sai_error = hsai_BlockA1.ErrorCode;
+    cap->hal_dma_state = (uint32_t)hdma_sai1_a.State;
+    g_audio_stall_capture_count = idx + 1;
+}
+
+void AudioStallCapture_LogAll(void)
+{
+    uint32_t count = g_audio_stall_capture_count;
+    if (count == 0U) return;
+
+    Safe_USB_Printf("AUDIO_STALL count=%lu\r\n", (unsigned long)count);
+    for (uint32_t i = 0U; i < count; i++) {
+        AudioStallCapture_t *cap = &g_audio_stall_captures[i];
+        char line[320];
+        int n = snprintf(line, sizeof(line),
+                 "AUDIO_STALL #%lu tick=%lu reason=%lu halves=%lu to_cnt=%lu "
+                 "dma_ccr=0x%08lx dma_cndtr=%lu dma_isr=0x%02lx dmamux=0x%08lx "
+                 "sai_sr=0x%08lx sai_cr1=0x%08lx sai_cr2=0x%08lx "
+                 "hal_sai=%lu hal_sai_err=0x%08lx hal_dma=%lu\r\n",
+                 (unsigned long)cap->capture_seq,
+                 (unsigned long)cap->capture_tick,
+                 (unsigned long)cap->stall_reason,
+                 (unsigned long)cap->s_audio_halves,
+                 (unsigned long)cap->stall_timeout_count,
+                 (unsigned long)cap->dma_ccr,
+                 (unsigned long)cap->dma_cndtr,
+                 (unsigned long)cap->dma_isr_chan,
+                 (unsigned long)cap->dmamux_ccr,
+                 (unsigned long)cap->sai_sr,
+                 (unsigned long)cap->sai_cr1,
+                 (unsigned long)cap->sai_cr2,
+                 (unsigned long)cap->hal_sai_state,
+                 (unsigned long)cap->hal_sai_error,
+                 (unsigned long)cap->hal_dma_state);
+        Safe_USB_Printf("%s\r\n", line);
+    }
 }

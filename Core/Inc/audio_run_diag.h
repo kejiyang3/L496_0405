@@ -1,5 +1,5 @@
-﻿/*
- * audio_run_diag.h - AUDIO_RUN 每秒诊断计数器
+/*
+ * audio_run_diag.h - AUDIO_RUN 每秒诊断计数器 + AUDIO_STALL 寄存器快照
  *
  * 用途: 追踪 MIC 通道在每个录制周期中的健康状态。
  *       所有计数器在 StartTask_Audio 进入新 session 时清零。
@@ -13,6 +13,8 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+/* ===== AUDIO_RUN 每秒诊断 ===== */
 
 typedef struct {
     /* 任务存活 */
@@ -47,10 +49,56 @@ typedef struct {
 
 } AudioRunDiag_t;
 
+/* ===== AUDIO_STALL 寄存器快照 ===== */
+
+#define AUDIO_STALL_CAPTURE_COUNT 4U  /* 最多捕获 4 次 stall */
+
+typedef struct {
+    /* 捕获元数据 */
+    volatile uint32_t capture_tick;          /* 捕获时刻的 HAL_GetTick() */
+    volatile uint32_t capture_seq;           /* 第几次 stall 捕获 (1-based) */
+    volatile uint32_t stall_reason;          /* 0=watchdog 1=dma_error 2=restart_fail */
+    volatile uint32_t s_audio_halves;        /* 当前 s_audio_halves 值 */
+
+    /* DMA2_Channel6 寄存器 (外设地址 0x40020400 + 0x68) */
+    volatile uint32_t dma_ccr;               /* DMA CCR (控制寄存器) */
+    volatile uint32_t dma_cndtr;             /* DMA CNDTR (剩余传输数) */
+    volatile uint32_t dma_isr_chan;          /* DMA ISR 中 Channel 6 相关位 */
+
+    /* DMAMUX Channel 6 (外设地址 0x40020800 + 0x18) */
+    volatile uint32_t dmamux_ccr;            /* DMAMUX CCR (请求线配置) */
+
+    /* SAI1 Block A 寄存器 (外设地址 0x40015400) */
+    volatile uint32_t sai_sr;                /* SAI SR (状态寄存器) */
+    volatile uint32_t sai_cr1;               /* SAI CR1 (控制寄存器1) */
+    volatile uint32_t sai_cr2;               /* SAI CR2 (控制寄存器2) */
+
+    /* HAL 状态 */
+    volatile uint32_t hal_sai_state;         /* hsai_BlockA1.State */
+    volatile uint32_t hal_sai_error;         /* hsai_BlockA1.ErrorCode */
+    volatile uint32_t hal_dma_state;         /* hdma_sai1_a.State */
+
+    /* DMA alive 推断 */
+    volatile uint32_t stall_timeout_count;   /* stall 触发时的连续超时计数 */
+
+} AudioStallCapture_t;
+
+/* ===== 全局变量 ===== */
+
 extern AudioRunDiag_t g_audio_run_diag;
+extern AudioStallCapture_t g_audio_stall_captures[AUDIO_STALL_CAPTURE_COUNT];
+extern volatile uint32_t g_audio_stall_capture_count;
+
+/* ===== 函数 ===== */
 
 void AudioRunDiag_Reset(void);
 void AudioRunDiag_LogSnapshot(void);
+
+/* 在 stall 检测点调用，捕获 DMA/SAI/HAL 寄存器现场 */
+void AudioStallCapture_Snapshot(uint32_t reason, uint32_t halves, uint32_t timeout_count);
+
+/* 将已捕获的所有 stall 快照写入 SD 调试日志 */
+void AudioStallCapture_LogAll(void);
 
 #ifdef __cplusplus
 }

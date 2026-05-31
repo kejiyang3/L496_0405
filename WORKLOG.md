@@ -125,6 +125,38 @@ All 7 experiments run with real hardware SD CSV evidence.
 **Code changes:**
 - Implemented `MultiSensorLogger_WriteRateIsoNoSdCsv()` in `multi_sensor_logger.c`
 - 4096-entry PPG/IMU tick ring buffers for no-SD post-recording CSV dump
+
+## v0.3-core-three-modal-stable COMPLETED (2026-05-31)
+
+Three-modal target config solidified as mainline baseline:
+
+**Config:**
+- MIC: OFF (RECORD_ENABLE_AUDIO=0)
+- PPG: FIFO avg1 ? 50 Hz (MAX30102_FIFO_CONFIG_STABLE=0x1F)
+- ICM: ACCEL/GYRO div=10 ? 102 Hz (ODR=1125/11=102.27)
+- ECG: unchanged (512 SPS MAX30003)
+- LVGL: OFF
+- Default record: 90s (switchable to 5min/30min)
+
+**7-round validation (90s?3 + 5min?3 + 30min?1): ALL PASS**
+- PPG: 50.14-50.43 Hz ?
+- IMU: 104.23-104.25 Hz ?
+- ECG: 488.56-489.00 Hz ?
+- i2c_errors=0, queue_fail=0, sd_write_errors=0 ?
+- Register readback: ppg_fifo_cfg=0x1F, icm_div=10/10 ?
+- 30min soak: zero degradation ?
+
+**Code changes committed:**
+- record_feature_flags.h: AUDIO=0, LVGL=0, PPG_AVG1=1, 90s default
+- max30102.h: FIFO_CONFIG_STABLE=0x1F (avg1)
+- icm20948.c: div=10, +ReadBank2Reg_Checked
+- multi_sensor_logger.c: WriteRateIsoNoSdCsv
+- GitHub: 5dc1096, pushed to master
+
+**Feishu synced:**
+- Software table: PPG?50Hz, IMU?102Hz status updated
+- Change log: v0.3 record created
+
 ## In Progress
 
 - Keeping this worklog as the cross-session recovery source.

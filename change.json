@@ -1,0 +1,1 @@
+{"日期":"2026-05-30 00:00:00","摘要":"MIC SAI DMA综合实验：修复前后5次测试对比，WAV SR=8000修复✅ fail-fast✅ 覆盖率108.5%(Exp1 62s)。SAI DMA stall根因MSI时钟漂移，根治需加装HSE。详见MIC_SAI_DMA_EXPERIMENT_COMPREHENSIVE_REPORT.md","类型":"软件","结果":"部分通过"}
