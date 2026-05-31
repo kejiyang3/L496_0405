@@ -21,9 +21,15 @@
 #define REG_BANK_SEL        0x7F
 #define REG_WHO_AM_I        0x00
 #define REG_USER_CTRL       0x03    // [补上缺失的宏] 用户控制寄存器
+#define REG_LP_CONFIG       0x05
 #define REG_PWR_MGMT_1      0x06
 #define REG_PWR_MGMT_2      0x07
 #define REG_INT_PIN_CFG     0x0F    // [补上缺失的宏] 中断/旁路配置寄存器
+#define REG_FIFO_EN_2       0x67
+#define REG_FIFO_RST        0x68
+#define REG_FIFO_MODE       0x69
+#define REG_FIFO_COUNTH     0x70
+#define REG_FIFO_R_W        0x72
 
 // 定义传感器数据结构体 (加上了磁力计)
 typedef struct {
@@ -54,7 +60,12 @@ void ICM20948_EnableDataReadyInterrupt(void);
 void ICM20948_DisableDataReadyInterrupt(void);
 uint8_t ICM20948_ReadBank0Reg_Debug(uint8_t reg);
 HAL_StatusTypeDef ICM20948_ReadBank0Reg_Checked(uint8_t reg, uint8_t *val);
+HAL_StatusTypeDef ICM20948_ReadBank2Reg_Checked(uint8_t reg, uint8_t *val);
 void ICM20948_EnableLatchedDataReadyInterrupt_Debug(void);
+uint8_t ICM20948_EnableAccelGyroFifo(void);
+uint8_t ICM20948_ReadFifoAccelGyroBatch(int16_t *ax, int16_t *ay, int16_t *az,
+                                        int16_t *gx, int16_t *gy, int16_t *gz,
+                                        uint8_t max_samples);
 uint8_t ICM20948_ReadAccelGyroRaw(int16_t *ax, int16_t *ay, int16_t *az,
                                   int16_t *gx, int16_t *gy, int16_t *gz);
 uint8_t ICM20948_ReadAccelGyroRawNoClear(int16_t *ax, int16_t *ay, int16_t *az,

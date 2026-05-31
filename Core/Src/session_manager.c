@@ -7,6 +7,36 @@
 
 extern osMutexId_t Mtx_SDCardHandle;
 extern uint8_t RETARGET_RecordFeatureFlags_H_was_included;
+extern volatile uint32_t g_ppg_task_call_count;
+extern volatile uint32_t g_imu_task_call_count;
+extern volatile uint32_t g_ppg_i2c_mutex_wait_ms_total;
+extern volatile uint32_t g_ppg_i2c_mutex_wait_ms_max;
+extern volatile uint32_t g_ppg_i2c_mutex_hold_ms_total;
+extern volatile uint32_t g_ppg_i2c_mutex_hold_ms_max;
+extern volatile uint32_t g_imu_i2c_mutex_wait_ms_total;
+extern volatile uint32_t g_imu_i2c_mutex_wait_ms_max;
+extern volatile uint32_t g_imu_i2c_mutex_hold_ms_total;
+extern volatile uint32_t g_imu_i2c_mutex_hold_ms_max;
+extern volatile uint32_t g_i2c3_rate_iso_error_count;
+extern volatile uint8_t g_ppg_ie1;
+extern volatile uint8_t g_ppg_fifo_cfg;
+extern volatile uint8_t g_ppg_mode;
+extern volatile uint8_t g_ppg_spo2_cfg;
+extern volatile uint8_t g_icm_who;
+extern volatile uint8_t g_icm_pwr1;
+extern volatile uint8_t g_icm_int_cfg;
+extern volatile uint8_t g_icm_int_en1;
+extern volatile uint8_t g_icm_accel_cfg;
+extern volatile uint16_t g_icm_accel_div;
+extern volatile uint8_t g_icm_gyro_cfg;
+extern volatile uint8_t g_icm_gyro_div;
+extern volatile uint8_t g_icm_odr_align;
+extern volatile uint8_t g_icm_user_ctrl;
+extern volatile uint8_t g_icm_lp_config;
+extern volatile uint8_t g_icm_pwr2;
+extern volatile uint8_t g_icm_fifo_en2;
+extern volatile uint8_t g_icm_fifo_mode;
+extern volatile uint16_t g_icm_fifo_count;
 #define RECORD_FEATURE_FLAGS_DEFINED
 #include "record_feature_flags.h"
 #include "multi_sensor_logger.h"
@@ -68,7 +98,7 @@ int Session_WriteMeta(void)
     if (Mtx_SDCardHandle != NULL) osMutexAcquire(Mtx_SDCardHandle, osWaitForever);
     res = f_open(&fp, path, FA_CREATE_ALWAYS | FA_WRITE);
     if (res == FR_OK) {
-        char buf[512];
+        char buf[1536];
         int len = snprintf(buf, sizeof(buf),
             "session_id=%s\r\n"
             "device_time_start=%s\r\n"
@@ -123,40 +153,61 @@ int Session_WriteDiagSummary(void)
     if (Mtx_SDCardHandle != NULL) osMutexAcquire(Mtx_SDCardHandle, osWaitForever);
     res = f_open(&fp, path, FA_CREATE_ALWAYS | FA_WRITE);
     if (res == FR_OK) {
-        char buf[512];
-        int len = snprintf(buf, sizeof(buf),
-            "ecg_eovf_count=%lu\r\n"
-            "ecg_fifo_empty_count=%lu\r\n"
-            "ecg_unknown_etag=%lu\r\n"
-            "ecg_pack_drop=%lu\r\n"
-            "ecg_queue_fail=%lu\r\n"
-            "ecg_writer_blocks=%lu\r\n"
-            "mic_drop_blocks=%lu\r\n"
-            "sd_write_errors=%lu\r\n"
-            "max_gap_recording_ms=%lu\r\n"
-            "max_gap_task_ms=%lu\r\n"
-            "pll_status_seen=%lu\r\n"
-            "pll_edges=%lu\r\n"
-            "task_calls=%lu\r\n"
-            "notify_wakes=%lu\r\n"
-            "notify_timeouts=%lu\r\n",
-            (unsigned long)g_ecg_rec.fifo_eovf_count,
-            (unsigned long)g_ecg_rec.fifo_empty_count,
-            (unsigned long)g_ecg_rec.fifo_unknown_etag_count,
-            (unsigned long)g_ecg_rec.pack_add_drop_count,
-            (unsigned long)g_ecg_rec.ecg_queue_submit_fail,
-            (unsigned long)g_ecg_rec.ecg_writer_get_blocks,
-            (unsigned long)g_ecg_rec.mic_drops,
-            (unsigned long)g_ecg_rec.ecg_sd_write_error_count,
-            (unsigned long)g_ecg_rec.diag_max_gap_recording_ms,
-            (unsigned long)g_ecg_rec.diag_max_gap_ms,
-            (unsigned long)g_ecg_rec.pll_status_seen_count,
-            (unsigned long)g_ecg_rec.pll_edge_count,
-            (unsigned long)g_ecg_rec.diag_task_calls,
-            (unsigned long)g_ecg_rec.diag_notify_wakes,
-            (unsigned long)g_ecg_rec.diag_notify_timeouts);
         UINT bw;
-        f_write(&fp, buf, (UINT)len, &bw);
+        char line[384];
+#define WRITE_DIAG_LINE(...) do { \
+            int n__ = snprintf(line, sizeof(line), __VA_ARGS__); \
+            if (n__ > 0 && n__ < (int)sizeof(line)) { \
+                f_write(&fp, line, (UINT)n__, &bw); \
+            } \
+        } while (0)
+        WRITE_DIAG_LINE("ecg_eovf_count=%lu\r\n", (unsigned long)g_ecg_rec.fifo_eovf_count);
+        WRITE_DIAG_LINE("ecg_fifo_empty_count=%lu\r\n", (unsigned long)g_ecg_rec.fifo_empty_count);
+        WRITE_DIAG_LINE("ecg_unknown_etag=%lu\r\n", (unsigned long)g_ecg_rec.fifo_unknown_etag_count);
+        WRITE_DIAG_LINE("ecg_pack_drop=%lu\r\n", (unsigned long)g_ecg_rec.pack_add_drop_count);
+        WRITE_DIAG_LINE("ecg_queue_fail=%lu\r\n", (unsigned long)g_ecg_rec.ecg_queue_submit_fail);
+        WRITE_DIAG_LINE("ecg_writer_blocks=%lu\r\n", (unsigned long)g_ecg_rec.ecg_writer_get_blocks);
+        WRITE_DIAG_LINE("mic_drop_blocks=%lu\r\n", (unsigned long)g_ecg_rec.mic_drops);
+        WRITE_DIAG_LINE("sd_write_errors=%lu\r\n", (unsigned long)g_ecg_rec.ecg_sd_write_error_count);
+        WRITE_DIAG_LINE("max_gap_recording_ms=%lu\r\n", (unsigned long)g_ecg_rec.diag_max_gap_recording_ms);
+        WRITE_DIAG_LINE("max_gap_task_ms=%lu\r\n", (unsigned long)g_ecg_rec.diag_max_gap_ms);
+        WRITE_DIAG_LINE("pll_status_seen=%lu\r\n", (unsigned long)g_ecg_rec.pll_status_seen_count);
+        WRITE_DIAG_LINE("pll_edges=%lu\r\n", (unsigned long)g_ecg_rec.pll_edge_count);
+        WRITE_DIAG_LINE("task_calls=%lu\r\n", (unsigned long)g_ecg_rec.diag_task_calls);
+        WRITE_DIAG_LINE("notify_wakes=%lu\r\n", (unsigned long)g_ecg_rec.diag_notify_wakes);
+        WRITE_DIAG_LINE("notify_timeouts=%lu\r\n", (unsigned long)g_ecg_rec.diag_notify_timeouts);
+        WRITE_DIAG_LINE("RATE_ISO_CONFIG,case=%u,label=%s,ecg=%u,ppg=%u,icm=%u,audio=%u,no_sd=%u,ppg_avg1=%u,icm_batch=%u\r\n",
+                        (unsigned)RECORD_RATE_ISO_CASE, RECORD_RATE_ISO_LABEL,
+                        (unsigned)RECORD_RATE_ISO_ENABLE_ECG, (unsigned)RECORD_ENABLE_PPG,
+                        (unsigned)RECORD_ENABLE_ICM, (unsigned)RECORD_ENABLE_AUDIO,
+                        (unsigned)RECORD_RATE_ISO_NO_SD, (unsigned)RECORD_RATE_ISO_PPG_AVG1,
+                        (unsigned)RECORD_RATE_ISO_ICM_BATCH);
+        WRITE_DIAG_LINE("RATE_ISO_PPG_REG,ppg_ie1=0x%02X,ppg_fifo_cfg=0x%02X,ppg_mode=0x%02X,ppg_spo2=0x%02X\r\n",
+                        (unsigned)g_ppg_ie1, (unsigned)g_ppg_fifo_cfg,
+                        (unsigned)g_ppg_mode, (unsigned)g_ppg_spo2_cfg);
+        WRITE_DIAG_LINE("RATE_ISO_ICM_REG,icm_who=0x%02X,icm_user_ctrl=0x%02X,icm_lp_config=0x%02X,icm_pwr1=0x%02X,icm_pwr2=0x%02X,icm_int_cfg=0x%02X,icm_int_en1=0x%02X,icm_fifo_en2=0x%02X,icm_fifo_mode=0x%02X,icm_fifo_count=%u,icm_accel_cfg=0x%02X,icm_accel_div=%u,icm_gyro_cfg=0x%02X,icm_gyro_div=%u,icm_odr_align=0x%02X\r\n",
+                        (unsigned)g_icm_who, (unsigned)g_icm_user_ctrl,
+                        (unsigned)g_icm_lp_config, (unsigned)g_icm_pwr1,
+                        (unsigned)g_icm_pwr2,
+                        (unsigned)g_icm_int_cfg, (unsigned)g_icm_int_en1,
+                        (unsigned)g_icm_fifo_en2, (unsigned)g_icm_fifo_mode,
+                        (unsigned)g_icm_fifo_count,
+                        (unsigned)g_icm_accel_cfg, (unsigned)g_icm_accel_div,
+                        (unsigned)g_icm_gyro_cfg, (unsigned)g_icm_gyro_div,
+                        (unsigned)g_icm_odr_align);
+        WRITE_DIAG_LINE("RATE_ISO_I2C,ppg_task_calls=%lu,imu_task_calls=%lu,ppg_mutex_wait_ms=%lu,ppg_mutex_wait_max=%lu,ppg_mutex_hold_ms=%lu,ppg_mutex_hold_max=%lu,imu_mutex_wait_ms=%lu,imu_mutex_wait_max=%lu,imu_mutex_hold_ms=%lu,imu_mutex_hold_max=%lu,i2c_errors=%lu\r\n",
+                        (unsigned long)g_ppg_task_call_count,
+                        (unsigned long)g_imu_task_call_count,
+                        (unsigned long)g_ppg_i2c_mutex_wait_ms_total,
+                        (unsigned long)g_ppg_i2c_mutex_wait_ms_max,
+                        (unsigned long)g_ppg_i2c_mutex_hold_ms_total,
+                        (unsigned long)g_ppg_i2c_mutex_hold_ms_max,
+                        (unsigned long)g_imu_i2c_mutex_wait_ms_total,
+                        (unsigned long)g_imu_i2c_mutex_wait_ms_max,
+                        (unsigned long)g_imu_i2c_mutex_hold_ms_total,
+                        (unsigned long)g_imu_i2c_mutex_hold_ms_max,
+                        (unsigned long)g_i2c3_rate_iso_error_count);
+#undef WRITE_DIAG_LINE
         f_close(&fp);
     }
     if (Mtx_SDCardHandle != NULL) osMutexRelease(Mtx_SDCardHandle);
@@ -190,7 +241,7 @@ int Session_WriteModalitySummary(void)
         /* ECG */
         sps = (float)g_ecg_rec.ecg_sample_count * 1000.0f / (float)dur;
         n = snprintf(line, sizeof(line),
-            "ECG,1,%u,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%.1f,%lu,%lu,OK\r\n",
+            "ECG,1,%u,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%.1f,%lu,%lu,OK\r\n",
             (unsigned)RECORD_ECG_SAMPLE_RATE_HZ,
             (unsigned long)g_ecg_rec.ecg_sample_count,
             (unsigned long)stats.ecg_submit_ok,
@@ -208,7 +259,7 @@ int Session_WriteModalitySummary(void)
         /* PPG */
         sps = (float)stats.ppg_samples * 1000.0f / (float)dur;
         n = snprintf(line, sizeof(line),
-            "PPG,%u,%u,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%.1f,%lu,%lu,OK\r\n",
+            "PPG,%u,%u,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%.1f,%lu,%lu,OK\r\n",
             (unsigned)RECORD_ENABLE_PPG,
             (unsigned)RECORD_PPG_SAMPLE_RATE_HZ,
             (unsigned long)stats.ppg_samples,
@@ -225,7 +276,7 @@ int Session_WriteModalitySummary(void)
         /* IMU */
         sps = (float)stats.imu_samples * 1000.0f / (float)dur;
         n = snprintf(line, sizeof(line),
-            "IMU,%u,%u,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%.1f,%lu,%lu,OK\r\n",
+            "IMU,%u,%u,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%.1f,%lu,%lu,OK\r\n",
             (unsigned)RECORD_ENABLE_ICM,
             (unsigned)104,
             (unsigned long)stats.imu_samples,
@@ -243,7 +294,7 @@ int Session_WriteModalitySummary(void)
         uint32_t mic_samples = g_ecg_rec.mic_bytes / 2U;
         sps = (float)mic_samples * 1000.0f / (float)dur;
         n = snprintf(line, sizeof(line),
-            "MIC,%u,%u,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%.1f,%lu,%lu,OK\r\n",
+            "MIC,%u,%u,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%.1f,%lu,%lu,OK\r\n",
             (unsigned)RECORD_ENABLE_AUDIO,
             (unsigned)RECORD_MIC_SAMPLE_RATE_HZ,
             (unsigned long)mic_samples,

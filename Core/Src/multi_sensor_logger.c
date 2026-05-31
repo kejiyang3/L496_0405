@@ -21,7 +21,7 @@ extern volatile uint32_t g_ppg_timeout_drain_count;
 
 #define MS_USB_VERBOSE 0
 
-/* ========== 闃熷�?========== */
+/* ========== 闃熷�?========== */
 #define MS_QUEUE_DEPTH      12
 osMessageQueueId_t Q_MultiSensorBlockHandle = NULL;
 
@@ -50,20 +50,29 @@ static uint32_t s_ecg_seq = 0;
 static uint32_t s_ppg_seq = 0;
 static uint32_t s_imu_seq = 0;
 
-/* 缁熻�?*/
+/* 缁熻�?*/
 static volatile uint32_t s_ppg_sample_count = 0;
 static volatile uint32_t s_imu_sample_count = 0;
 static volatile uint32_t s_ecg_block_drop = 0;
 static volatile uint32_t s_ppg_block_drop = 0;
 static volatile uint32_t s_imu_block_drop = 0;
 
-/* 鐪熷疄鍐欏叆鎴愬�?澶辫触璁℃暟 */
+/* 鐪熷疄鍐欏叆鎴愬�?澶辫触璁℃暟 */
 static volatile uint32_t s_ecg_write_ok  = 0;
 static volatile uint32_t s_ecg_write_fail = 0;
 static volatile uint32_t s_ppg_write_ok  = 0;
 static volatile uint32_t s_ppg_write_fail = 0;
 static volatile uint32_t s_imu_write_ok  = 0;
 static volatile uint32_t s_imu_write_fail = 0;
+
+/* No-SD rate isolation: store PPG/IMU ticks for post-recording CSV dump */
+#if RECORD_RATE_ISO_NO_SD
+#define RATE_ISO_TICK_BUF_SIZE 4096
+static uint32_t s_rate_iso_ppg_ticks[RATE_ISO_TICK_BUF_SIZE];
+static uint32_t s_rate_iso_imu_ticks[RATE_ISO_TICK_BUF_SIZE];
+static uint16_t s_rate_iso_ppg_tick_idx = 0;
+static uint16_t s_rate_iso_imu_tick_idx = 0;
+#endif
 static volatile uint32_t s_ecg_submit_ok = 0;
 static volatile uint32_t s_ecg_submit_fail = 0;
 static volatile uint32_t s_writer_get_count = 0;
@@ -75,7 +84,7 @@ static volatile uint8_t s_stop_requested = 0;
 static FIL s_ms_file;
 static volatile uint8_t s_file_opened = 0;
 
-/* ========== 鍐呴儴锛氭彁�?block ========== */
+/* ========== 鍐呴儴锛氭彁�?block ========== */
 static void submit_ecg_block(uint16_t count)
 {
     uint8_t idx = s_ecg_active;
@@ -213,6 +222,11 @@ void MultiSensorLogger_AddPPG(uint32_t ir, uint32_t red)
     blk->count = pos + 1;
 
     s_ppg_sample_count++;
+#if RECORD_RATE_ISO_NO_SD
+    if (s_rate_iso_ppg_tick_idx < RATE_ISO_TICK_BUF_SIZE) {
+        s_rate_iso_ppg_ticks[s_rate_iso_ppg_tick_idx++] = blk->timestamp_ms[pos];
+    }
+#endif
 
     if (blk->count >= PPG_BLOCK_SAMPLES) {
         submit_ppg_block(blk->count);
@@ -239,13 +253,18 @@ void MultiSensorLogger_AddIMU(int16_t ax, int16_t ay, int16_t az,
     blk->count = pos + 1;
 
     s_imu_sample_count++;
+#if RECORD_RATE_ISO_NO_SD
+    if (s_rate_iso_imu_tick_idx < RATE_ISO_TICK_BUF_SIZE) {
+        s_rate_iso_imu_ticks[s_rate_iso_imu_tick_idx++] = blk->timestamp_ms[pos];
+    }
+#endif
 
     if (blk->count >= IMU_BLOCK_SAMPLES) {
         submit_imu_block(blk->count);
     }
 }
 
-/* ========== Stop �?flush 鍗婃�?block ========== */
+/* ========== Stop �?flush 鍗婃�?block ========== */
 
 void MultiSensorLogger_RequestStopAndFlush(void)
 {
@@ -281,6 +300,10 @@ void MultiSensorLogger_ResetForNewRecording(void)
     s_ppg_write_fail = 0;
     s_imu_write_ok   = 0;
     s_imu_write_fail = 0;
+#if RECORD_RATE_ISO_NO_SD
+    s_rate_iso_ppg_tick_idx = 0;
+    s_rate_iso_imu_tick_idx = 0;
+#endif
     s_ecg_submit_ok = 0;
     s_ecg_submit_fail = 0;
     s_writer_get_count = 0;
@@ -355,7 +378,7 @@ void MultiSensorLogger_GetStats(MS_Stats_t *stats)
     stats->ecg_submit_fail = s_ecg_submit_fail;
 }
 
-/* ========== Writer: block 閲婃�?========== */
+/* ========== Writer: block 閲婃�?========== */
 static void free_ecg_block(uint8_t idx) { s_ecg_blocks[idx].count = 0; s_ecg_block_free[idx] = 1; }
 static void free_ppg_block(uint8_t idx) { s_ppg_blocks[idx].count = 0; s_ppg_block_free[idx] = 1; }
 static void free_imu_block(uint8_t idx) { s_imu_blocks[idx].count = 0; s_imu_block_free[idx] = 1; }
@@ -541,7 +564,7 @@ static void write_imu_block(FIL *fp, uint8_t idx)
     free_imu_block(idx);
 }
 
-/* ========== Writer 浠诲�?========== */
+/* ========== Writer 浠诲�?========== */
 
 #define MS_SYNC_EVERY_BLOCKS    8
 
@@ -555,7 +578,7 @@ void StartTask_MultiSensor_SDWriter(void *argument)
     MultiSensorLogger_InitQueue();
 
     for (;;) {
-        /* 绛夊�?RECORDING 鐘舵�?*/
+        /* 绛夊�?RECORDING 鐘舵�?*/
         while (g_ecg_rec.state != ECG_REC_RECORDING) {
             osDelay(50);
         }
@@ -642,7 +665,7 @@ void StartTask_MultiSensor_SDWriter(void *argument)
 
         Safe_USB_Printf("[MS_SD] file opened and released\r\n");
 
-        /* 涓诲惊鐜細�?block 鍐欏�?*/
+        /* 涓诲惊鐜細�?block 鍐欏�?*/
         while (g_ecg_rec.state == ECG_REC_RECORDING ||
                g_ecg_rec.state == ECG_REC_STOPPING ||
                osMessageQueueGetCount(Q_MultiSensorBlockHandle) > 0) {
@@ -718,7 +741,7 @@ void StartTask_MultiSensor_SDWriter(void *argument)
             }
         }
 
-        /* 鍏抽棴鏂囦欢 �?�?fsync+close锛屼�?unmount */
+        /* 鍏抽棴鏂囦欢 �?�?fsync+close锛屼�?unmount */
         FRESULT final_sync = FR_OK;
         FRESULT close_res = FR_OK;
         {
@@ -744,7 +767,7 @@ void StartTask_MultiSensor_SDWriter(void *argument)
                         final_sync, close_res,
                         (unsigned long)g_ecg_rec.sd_write_bytes,
                         (unsigned long)g_ecg_rec.ecg_written_count);
-        /* 涓嶈皟鐢?f_mount(NULL)锛岄伩鍏嶅奖�?PPGDiagWriter 绛夋寔鏈夋枃浠剁殑浠诲姟 */
+        /* 涓嶈皟鐢?f_mount(NULL)锛岄伩鍏嶅奖�?PPGDiagWriter 绛夋寔鏈夋枃浠剁殑浠诲姟 */
 
         s_file_opened = 0;
         g_ecg_rec.sd_file_opened = 0;
@@ -752,7 +775,7 @@ void StartTask_MultiSensor_SDWriter(void *argument)
         g_ecg_rec.stop_tick = HAL_GetTick();
         g_ecg_rec.state = ECG_REC_STOPPED;
 
-        /* 鍐欑粺璁℃憳瑕佸�?debug_log */
+        /* 鍐欑粺璁℃憳瑕佸�?debug_log */
         #if 1
         {
             char stats[640];
@@ -833,3 +856,50 @@ void StartTask_MultiSensor_SDWriter(void *argument)
     }
 }
 
+
+/* ========== No-SD rate isolation: post-recording CSV dump ========== */
+int MultiSensorLogger_WriteRateIsoNoSdCsv(void)
+{
+#if RECORD_RATE_ISO_NO_SD
+    FIL file;
+    FRESULT res;
+    char fpath[64];
+    UINT bw;
+    char line[128];
+    uint16_t i;
+
+    snprintf(fpath, sizeof(fpath), "%s/ecg_samples.csv", g_session.session_dir);
+    res = f_open(&file, fpath, FA_CREATE_ALWAYS | FA_WRITE);
+    if (res != FR_OK) return -1;
+
+    /* CSV header matching 10-column format */
+    static const char header[] = "tick,kind,seq,ax,ay,az,gx,gy,gz,ir,red,ecg\r\n";
+    f_write(&file, header, (UINT)(sizeof(header) - 1), &bw);
+
+    /* PPG rows */
+    for (i = 0; i < s_rate_iso_ppg_tick_idx; i++) {
+        int n = snprintf(line, sizeof(line),
+            "%lu,PPG,%u,0,0,0,0,0,0\r\n",
+            (unsigned long)s_rate_iso_ppg_ticks[i], (unsigned)i);
+        if (n > 0 && n < (int)sizeof(line)) {
+            f_write(&file, line, (UINT)n, &bw);
+        }
+    }
+
+    /* IMU rows */
+    for (i = 0; i < s_rate_iso_imu_tick_idx; i++) {
+        int n = snprintf(line, sizeof(line),
+            "%lu,IMU,%u,0,0,0,0,0,0\r\n",
+            (unsigned long)s_rate_iso_imu_ticks[i], (unsigned)i);
+        if (n > 0 && n < (int)sizeof(line)) {
+            f_write(&file, line, (UINT)n, &bw);
+        }
+    }
+
+    f_close(&file);
+    return 0;
+#else
+    (void)0;
+    return -1;
+#endif
+}

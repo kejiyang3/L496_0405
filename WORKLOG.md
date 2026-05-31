@@ -101,9 +101,50 @@ python pc\usb_sd_pull.py --port COM12 get-all -o ..\sd_pull_output
 2. ⚠️ ECG 512Hz → ~374Hz, 96% 超时轮询 (notify_wakes=45 vs timeouts=8963)
 3. ⚠️ PPG ~12Hz / IMU ~50Hz 低于配置速率
 
+
+## PPG / ICM Rate Isolation COMPLETED (2026-05-31)
+
+All 7 experiments run with real hardware SD CSV evidence.
+
+**Results:**
+- Case 1 (PPG-only avg4): PPG 12.55 Hz (baseline)
+- Case 2 (PPG-only avg1): PPG 50.13 Hz ← **FIFO averaging IS root cause**
+- Case 3 (ICM-only): IMU 52.08 Hz (div=21 → 1125/22=51.14)
+- Case 4 (ICM-only batch): IMU 52.10 Hz (batch no effect)
+- Case 5 (PPG+ICM): PPG 12.56, IMU 52.09 (no mutual slowdown)
+- Case 6 (PPG+ICM no-SD): PPG 12.56, IMU 52.09 (SD not bottleneck)
+- Case 7 (ECG+PPG+ICM no-MIC): PPG 13.44, IMU 52.22, ECG 488.91
+
+**Root causes:**
+1. PPG ~12.5 Hz: MAX30102 FIFO 4-sample averaging (avg4)
+2. IMU ~52 Hz: ICM20948 register div=21, ODR=1125/22=51.14 Hz
+3. I2C3 sharing: NOT a bottleneck
+4. SD writing: NOT a bottleneck
+5. FIFO strategy: NOT a factor
+
+**Code changes:**
+- Implemented `MultiSensorLogger_WriteRateIsoNoSdCsv()` in `multi_sensor_logger.c`
+- 4096-entry PPG/IMU tick ring buffers for no-SD post-recording CSV dump
 ## In Progress
 
 - Keeping this worklog as the cross-session recovery source.
+
+## PPG / ICM Rate Isolation (2026-05-31)
+
+Goal: run seven isolation experiments for PPG and ICM20948 sampling rate. Do not assume PPG ~12.5 Hz or ICM ~52 Hz are normal until CSV counts, register readbacks, I2C3 mutex timing, task call frequency, and no-SD controls are collected.
+
+Progress:
+- Added `python/ppg_icm_rate_report.py` plus unit test to parse SD CSV evidence into `file_count`, `first_tick`, `last_tick`, and `actual_sps`.
+- Added CMake override support for `RECORD_RATE_ISO_CASE`, so builds can select experiment cases 1..7 without manual header edits.
+- Added rate-isolation macros for the seven requested cases and MAX30102 avg4/avg1 FIFO config selection.
+- Added PPG/IMU task call counters, I2C3 mutex wait/hold counters, I2C error counter, and MAX30102/ICM register readback plumbing in firmware.
+- Case 1 build (`RECORD_RATE_ISO_CASE=1`, PPG-only avg4) passes.
+- Case 1 hardware evidence pulled:
+  - `sd_rate_case1_ppg_only_avg4`: PPG CSV `1127` rows, first tick `11864`, last tick `101758`, actual `12.54 Hz`.
+  - `sd_rate_case1_ppg_only_avg4_v2`: PPG CSV `800` rows, first tick `11784`, last tick `75633`, actual `12.53 Hz`.
+
+Open issue before continuing cases 2..7:
+- `log_001.txt` was not present and `diag_summary.txt` still lacks the new RATE_ISO lines in pulled evidence, despite the strings being present in `build/L496_0405.elf`. Need make register/I2C diagnostics land in an SD artifact reliably, or capture them by OpenOCD memory read before flashing `sd_debug_tool`.
 
 ## ECG Four-Modal Closed Loop (2026-05-28)
 

@@ -93,6 +93,17 @@ volatile uint32_t g_ppg_init_ret = 0;
 volatile uint32_t g_ppg_int_wakeup_count = 0;
 volatile uint32_t g_ppg_timeout_wakeup_count = 0;
 volatile uint32_t g_ppg_timeout_drain_count = 0;
+volatile uint32_t g_ppg_task_call_count = 0;
+volatile uint32_t g_imu_task_call_count = 0;
+volatile uint32_t g_ppg_i2c_mutex_wait_ms_total = 0;
+volatile uint32_t g_ppg_i2c_mutex_wait_ms_max = 0;
+volatile uint32_t g_ppg_i2c_mutex_hold_ms_total = 0;
+volatile uint32_t g_ppg_i2c_mutex_hold_ms_max = 0;
+volatile uint32_t g_imu_i2c_mutex_wait_ms_total = 0;
+volatile uint32_t g_imu_i2c_mutex_wait_ms_max = 0;
+volatile uint32_t g_imu_i2c_mutex_hold_ms_total = 0;
+volatile uint32_t g_imu_i2c_mutex_hold_ms_max = 0;
+volatile uint32_t g_i2c3_rate_iso_error_count = 0;
 static volatile uint8_t s_ppg_ready = 0;
 static volatile uint8_t s_icm_ready = 0;
 #define USB_LOG_PENDING_SIZE 1536U
@@ -111,6 +122,23 @@ volatile uint8_t g_ppg_fifo_wr  = 0;  /* FIFO_WR_POINTER & 0x1F */
 volatile uint8_t g_ppg_fifo_rd  = 0;  /* FIFO_RD_POINTER & 0x1F */
 volatile uint8_t g_ppg_fifo_ov  = 0;  /* FIFO_OV_COUNTER & 0x1F */
 volatile uint8_t g_ppg_mode     = 0;  /* MODE_CONFIGURATION */
+volatile uint8_t g_ppg_fifo_cfg = 0;
+volatile uint8_t g_ppg_spo2_cfg = 0;
+volatile uint8_t g_icm_who = 0;
+volatile uint8_t g_icm_pwr1 = 0;
+volatile uint8_t g_icm_int_cfg = 0;
+volatile uint8_t g_icm_int_en1 = 0;
+volatile uint8_t g_icm_accel_cfg = 0;
+volatile uint16_t g_icm_accel_div = 0;
+volatile uint8_t g_icm_gyro_cfg = 0;
+volatile uint8_t g_icm_gyro_div = 0;
+volatile uint8_t g_icm_odr_align = 0;
+volatile uint8_t g_icm_user_ctrl = 0;
+volatile uint8_t g_icm_lp_config = 0;
+volatile uint8_t g_icm_pwr2 = 0;
+volatile uint8_t g_icm_fifo_en2 = 0;
+volatile uint8_t g_icm_fifo_mode = 0;
+volatile uint16_t g_icm_fifo_count = 0;
 
 /* Custom tasks created from USER CODE sections so CubeMX regeneration keeps them. */
 osThreadId_t Task_MultiSensor_SDWriterHandle;
@@ -195,6 +223,11 @@ static void APP_Log_PPG_INT_Diag_To_SD(uint32_t seq);
 static void APP_Report_ECG_Stats(uint8_t force);
 static void APP_USB_LogFlush(uint8_t force);
 static void APP_I2C3_BusRecover(void);
+static uint32_t APP_I2C3_AcquireDiag(uint8_t is_ppg);
+static void APP_I2C3_ReleaseDiag(uint8_t is_ppg, uint32_t acquire_tick);
+static void APP_Reset_RateIsoDiag(void);
+static void APP_Log_RateIsoConfig_To_SD(void);
+static void APP_Log_RateIsoDiag_To_SD(void);
 /* USER CODE END FunctionPrototypes */
 
 /* USER CODE BEGIN 0 */
@@ -254,6 +287,163 @@ static void APP_RequestStopOnModalityError(const char *reason)
       g_ecg_rec.state == ECG_REC_RECORDING) {
     SD_DebugLog_WriteLine(reason);
     g_ecg_rec.request_stop = 1;
+  }
+}
+
+static uint32_t APP_I2C3_AcquireDiag(uint8_t is_ppg)
+{
+  uint32_t t0 = HAL_GetTick();
+  if (Mtx_I2C3Handle != NULL) {
+    (void)osMutexAcquire(Mtx_I2C3Handle, osWaitForever);
+  }
+  {
+    uint32_t wait_ms = HAL_GetTick() - t0;
+    if (is_ppg) {
+      g_ppg_i2c_mutex_wait_ms_total += wait_ms;
+      if (wait_ms > g_ppg_i2c_mutex_wait_ms_max) g_ppg_i2c_mutex_wait_ms_max = wait_ms;
+    } else {
+      g_imu_i2c_mutex_wait_ms_total += wait_ms;
+      if (wait_ms > g_imu_i2c_mutex_wait_ms_max) g_imu_i2c_mutex_wait_ms_max = wait_ms;
+    }
+  }
+  return HAL_GetTick();
+}
+
+static void APP_I2C3_ReleaseDiag(uint8_t is_ppg, uint32_t acquire_tick)
+{
+  uint32_t hold_ms = HAL_GetTick() - acquire_tick;
+  if (is_ppg) {
+    g_ppg_i2c_mutex_hold_ms_total += hold_ms;
+    if (hold_ms > g_ppg_i2c_mutex_hold_ms_max) g_ppg_i2c_mutex_hold_ms_max = hold_ms;
+  } else {
+    g_imu_i2c_mutex_hold_ms_total += hold_ms;
+    if (hold_ms > g_imu_i2c_mutex_hold_ms_max) g_imu_i2c_mutex_hold_ms_max = hold_ms;
+  }
+  if (Mtx_I2C3Handle != NULL) {
+    osMutexRelease(Mtx_I2C3Handle);
+  }
+}
+
+static void APP_Reset_RateIsoDiag(void)
+{
+  g_ppg_task_call_count = 0;
+  g_imu_task_call_count = 0;
+  g_ppg_i2c_mutex_wait_ms_total = 0;
+  g_ppg_i2c_mutex_wait_ms_max = 0;
+  g_ppg_i2c_mutex_hold_ms_total = 0;
+  g_ppg_i2c_mutex_hold_ms_max = 0;
+  g_imu_i2c_mutex_wait_ms_total = 0;
+  g_imu_i2c_mutex_wait_ms_max = 0;
+  g_imu_i2c_mutex_hold_ms_total = 0;
+  g_imu_i2c_mutex_hold_ms_max = 0;
+  g_i2c3_rate_iso_error_count = 0;
+}
+
+static void APP_Log_RateIsoConfig_To_SD(void)
+{
+  uint8_t ppg_ie1 = 0, ppg_fifo = 0, ppg_mode = 0, ppg_spo2 = 0;
+  uint8_t icm_who = 0, icm_user_ctrl = 0, icm_lp_config = 0, icm_pwr1 = 0, icm_pwr2 = 0;
+  uint8_t icm_int_cfg = 0, icm_int_en1 = 0, icm_fifo_en2 = 0, icm_fifo_mode = 0;
+  uint8_t icm_accel_cfg = 0, icm_accel_div_h = 0, icm_accel_div_l = 0;
+  uint8_t icm_gyro_cfg = 0, icm_gyro_div = 0, icm_odr_align = 0;
+  uint8_t icm_fifo_count_h = 0, icm_fifo_count_l = 0;
+  uint32_t t;
+
+  t = APP_I2C3_AcquireDiag(1U);
+  if (s_ppg_ready) {
+    if (MAX30102_ReadBuffer(INTERRUPT_ENABLE1, &ppg_ie1, 1) != SUCCESS) g_i2c3_rate_iso_error_count++;
+    if (MAX30102_ReadBuffer(FIFO_CONFIGURATION, &ppg_fifo, 1) != SUCCESS) g_i2c3_rate_iso_error_count++;
+    if (MAX30102_ReadBuffer(MODE_CONFIGURATION, &ppg_mode, 1) != SUCCESS) g_i2c3_rate_iso_error_count++;
+    if (MAX30102_ReadBuffer(SPO2_CONFIGURATION, &ppg_spo2, 1) != SUCCESS) g_i2c3_rate_iso_error_count++;
+  }
+  APP_I2C3_ReleaseDiag(1U, t);
+
+  t = APP_I2C3_AcquireDiag(0U);
+  if (s_icm_ready) {
+    if (ICM20948_ReadBank0Reg_Checked(REG_WHO_AM_I, &icm_who) != HAL_OK) g_i2c3_rate_iso_error_count++;
+    if (ICM20948_ReadBank0Reg_Checked(REG_USER_CTRL, &icm_user_ctrl) != HAL_OK) g_i2c3_rate_iso_error_count++;
+    if (ICM20948_ReadBank0Reg_Checked(REG_LP_CONFIG, &icm_lp_config) != HAL_OK) g_i2c3_rate_iso_error_count++;
+    if (ICM20948_ReadBank0Reg_Checked(REG_PWR_MGMT_1, &icm_pwr1) != HAL_OK) g_i2c3_rate_iso_error_count++;
+    if (ICM20948_ReadBank0Reg_Checked(REG_PWR_MGMT_2, &icm_pwr2) != HAL_OK) g_i2c3_rate_iso_error_count++;
+    if (ICM20948_ReadBank0Reg_Checked(REG_INT_PIN_CFG, &icm_int_cfg) != HAL_OK) g_i2c3_rate_iso_error_count++;
+    if (ICM20948_ReadBank0Reg_Checked(0x11, &icm_int_en1) != HAL_OK) g_i2c3_rate_iso_error_count++;
+    if (ICM20948_ReadBank0Reg_Checked(REG_FIFO_EN_2, &icm_fifo_en2) != HAL_OK) g_i2c3_rate_iso_error_count++;
+    if (ICM20948_ReadBank0Reg_Checked(REG_FIFO_MODE, &icm_fifo_mode) != HAL_OK) g_i2c3_rate_iso_error_count++;
+    if (ICM20948_ReadBank0Reg_Checked(REG_FIFO_COUNTH, &icm_fifo_count_h) != HAL_OK) g_i2c3_rate_iso_error_count++;
+    if (ICM20948_ReadBank0Reg_Checked((uint8_t)(REG_FIFO_COUNTH + 1U), &icm_fifo_count_l) != HAL_OK) g_i2c3_rate_iso_error_count++;
+    if (ICM20948_ReadBank2Reg_Checked(0x14, &icm_accel_cfg) != HAL_OK) g_i2c3_rate_iso_error_count++;
+    if (ICM20948_ReadBank2Reg_Checked(0x10, &icm_accel_div_h) != HAL_OK) g_i2c3_rate_iso_error_count++;
+    if (ICM20948_ReadBank2Reg_Checked(0x11, &icm_accel_div_l) != HAL_OK) g_i2c3_rate_iso_error_count++;
+    if (ICM20948_ReadBank2Reg_Checked(0x01, &icm_gyro_cfg) != HAL_OK) g_i2c3_rate_iso_error_count++;
+    if (ICM20948_ReadBank2Reg_Checked(0x00, &icm_gyro_div) != HAL_OK) g_i2c3_rate_iso_error_count++;
+    if (ICM20948_ReadBank2Reg_Checked(0x09, &icm_odr_align) != HAL_OK) g_i2c3_rate_iso_error_count++;
+  }
+  APP_I2C3_ReleaseDiag(0U, t);
+
+  {
+    char line[384];
+    g_ppg_ie1 = ppg_ie1;
+    g_ppg_fifo_cfg = ppg_fifo;
+    g_ppg_mode = ppg_mode;
+    g_ppg_spo2_cfg = ppg_spo2;
+    g_icm_who = icm_who;
+    g_icm_user_ctrl = icm_user_ctrl;
+    g_icm_lp_config = icm_lp_config;
+    g_icm_pwr1 = icm_pwr1;
+    g_icm_pwr2 = icm_pwr2;
+    g_icm_int_cfg = icm_int_cfg;
+    g_icm_int_en1 = icm_int_en1;
+    g_icm_fifo_en2 = icm_fifo_en2;
+    g_icm_fifo_mode = icm_fifo_mode;
+    g_icm_fifo_count = (uint16_t)(((uint16_t)icm_fifo_count_h << 8) | icm_fifo_count_l);
+    g_icm_accel_cfg = icm_accel_cfg;
+    g_icm_accel_div = (uint16_t)(((uint16_t)icm_accel_div_h << 8) | icm_accel_div_l);
+    g_icm_gyro_cfg = icm_gyro_cfg;
+    g_icm_gyro_div = icm_gyro_div;
+    g_icm_odr_align = icm_odr_align;
+    int n = snprintf(line, sizeof(line),
+      "RATE_ISO_CONFIG,case=%u,label=%s,ecg=%u,ppg=%u,icm=%u,audio=%u,no_sd=%u,ppg_avg1=%u,icm_batch=%u,"
+      "ppg_ie1=0x%02X,ppg_fifo_cfg=0x%02X,ppg_mode=0x%02X,ppg_spo2=0x%02X,"
+      "icm_who=0x%02X,icm_user_ctrl=0x%02X,icm_lp_config=0x%02X,icm_pwr1=0x%02X,icm_pwr2=0x%02X,"
+      "icm_int_cfg=0x%02X,icm_int_en1=0x%02X,icm_fifo_en2=0x%02X,icm_fifo_mode=0x%02X,icm_fifo_count=%u,"
+      "icm_accel_cfg=0x%02X,icm_accel_div=%u,icm_gyro_cfg=0x%02X,icm_gyro_div=%u,icm_odr_align=0x%02X",
+      (unsigned)RECORD_RATE_ISO_CASE, RECORD_RATE_ISO_LABEL,
+      (unsigned)RECORD_RATE_ISO_ENABLE_ECG, (unsigned)RECORD_ENABLE_PPG,
+      (unsigned)RECORD_ENABLE_ICM, (unsigned)RECORD_ENABLE_AUDIO,
+      (unsigned)RECORD_RATE_ISO_NO_SD, (unsigned)RECORD_RATE_ISO_PPG_AVG1,
+      (unsigned)RECORD_RATE_ISO_ICM_BATCH,
+      ppg_ie1, ppg_fifo, ppg_mode, ppg_spo2,
+      icm_who, icm_user_ctrl, icm_lp_config, icm_pwr1, icm_pwr2,
+      icm_int_cfg, icm_int_en1, icm_fifo_en2, icm_fifo_mode, (unsigned)g_icm_fifo_count,
+      icm_accel_cfg, (unsigned)g_icm_accel_div,
+      icm_gyro_cfg, (unsigned)icm_gyro_div, icm_odr_align);
+    if (n > 0 && n < (int)sizeof(line)) {
+      SD_DebugLog_WriteLine(line);
+    }
+  }
+}
+
+static void APP_Log_RateIsoDiag_To_SD(void)
+{
+  char line[320];
+  int n = snprintf(line, sizeof(line),
+    "RATE_ISO_I2C,ppg_task_calls=%lu,imu_task_calls=%lu,"
+    "ppg_mutex_wait_ms=%lu,ppg_mutex_wait_max=%lu,ppg_mutex_hold_ms=%lu,ppg_mutex_hold_max=%lu,"
+    "imu_mutex_wait_ms=%lu,imu_mutex_wait_max=%lu,imu_mutex_hold_ms=%lu,imu_mutex_hold_max=%lu,"
+    "i2c_errors=%lu",
+    (unsigned long)g_ppg_task_call_count,
+    (unsigned long)g_imu_task_call_count,
+    (unsigned long)g_ppg_i2c_mutex_wait_ms_total,
+    (unsigned long)g_ppg_i2c_mutex_wait_ms_max,
+    (unsigned long)g_ppg_i2c_mutex_hold_ms_total,
+    (unsigned long)g_ppg_i2c_mutex_hold_ms_max,
+    (unsigned long)g_imu_i2c_mutex_wait_ms_total,
+    (unsigned long)g_imu_i2c_mutex_wait_ms_max,
+    (unsigned long)g_imu_i2c_mutex_hold_ms_total,
+    (unsigned long)g_imu_i2c_mutex_hold_ms_max,
+    (unsigned long)g_i2c3_rate_iso_error_count);
+  if (n > 0 && n < (int)sizeof(line)) {
+    SD_DebugLog_WriteLine(line);
   }
 }
 
@@ -383,7 +573,7 @@ void MX_FREERTOS_Init(void) {
   if (ECG_DEBUG_ENABLE_ICM && Task_IMUHandle == NULL) g_task_create_error |= (1UL << 7);
 
   Task_AudioHandle = RECORD_DIAG_AUDIO_TASK_CREATE ? osThreadNew(StartTask_Audio, NULL, &Task_Audio_attributes) : NULL;
-  if (Task_AudioHandle == NULL) g_task_create_error |= (1UL << 4);
+  if (RECORD_DIAG_AUDIO_TASK_CREATE && Task_AudioHandle == NULL) g_task_create_error |= (1UL << 4);
 
   /* 澶氫紶鎰熷櫒 SD Writer (鍙栦唬鏃х殑 ECG_SDWriter) */
   Task_MultiSensor_SDWriterHandle = osThreadNew(StartTask_MultiSensor_SDWriter, NULL, &Task_MultiSensor_SDWriter_attributes);
@@ -535,11 +725,15 @@ void StartTask_Sensor(void *argument)
   }
 
   /* ECG 鍒濆鍖栫収鏃э紝涓嶅彈 PPG/ICM 褰卞搷 */
-  Safe_USB_Printf("[SENSOR] before MAX30003_Init\r\n");
-  MAX30003_Init();
-  MAX30003_DiagLog_Init();
-  Safe_USB_Printf("[SENSOR] after MAX30003_Init\r\n");
-  MAX30003_PollLeadStatus();
+  if (RECORD_RATE_ISO_ENABLE_ECG) {
+    Safe_USB_Printf("[SENSOR] before MAX30003_Init\r\n");
+    MAX30003_Init();
+    MAX30003_DiagLog_Init();
+    Safe_USB_Printf("[SENSOR] after MAX30003_Init\r\n");
+    MAX30003_PollLeadStatus();
+  } else {
+    SD_DebugLog_WriteLine("RATE_ISO_ECG_DISABLED");
+  }
 
   /* Diagnostic: explicit EN_MIC control for Case B/D/E/F */
 #if RECORD_DIAG_AUDIO_EN_MIC_ON
@@ -609,7 +803,7 @@ void StartTask_Sensor(void *argument)
         ecg_buf_idx = 0;
         g_sys_state = SYS_STATE_RECORDING;
         ECG_ResetStats();
-        {
+        if (RECORD_DIAG_AUDIO_TASK_CREATE) {
           uint32_t wait0 = HAL_GetTick();
           while (g_ecg_rec.mic_file_open_tick == 0U &&
                  (HAL_GetTick() - wait0) < 3000U &&
@@ -634,7 +828,7 @@ void StartTask_Sensor(void *argument)
         //     uint8_t s1, s2;
         //     MAX30102_ClearInterruptStatus(&s1, &s2);
         // }
-        if (Mtx_I2C3Handle != NULL) osMutexAcquire(Mtx_I2C3Handle, osWaitForever);
+        uint32_t i2c_start_t = APP_I2C3_AcquireDiag(1U);
         if (s_ppg_ready) {
           uint8_t s1, s2;
           (void)MAX30102_ClearInterruptStatus(&s1, &s2);
@@ -645,7 +839,7 @@ void StartTask_Sensor(void *argument)
         if (s_ppg_ready) {
           (void)MAX30102_EnableFifoAlmostFullInterrupt();
         }
-        if (Mtx_I2C3Handle != NULL) osMutexRelease(Mtx_I2C3Handle);
+        APP_I2C3_ReleaseDiag(1U, i2c_start_t);
 
         g_imu_read_ok_count = 0;
         g_imu_read_fail_count = 0;
@@ -658,18 +852,33 @@ void StartTask_Sensor(void *argument)
         g_ppg_timeout_drain_count = 0;
         icm_irq_count = 0;
         ppg_irq_count = 0;
+        APP_Reset_RateIsoDiag();
+        APP_Log_RateIsoConfig_To_SD();
         /* AudioTask stays at creation priority Normal1 锟斤拷 must be below SensorTask AboveNormal */
         (void)Task_AudioHandle;
-        Safe_USB_Printf("[REC] before MAX30003_StartStream tick=%lu\r\n",
-                        (unsigned long)HAL_GetTick());
-        MAX30003_StartStream();
-        g_ecg_rec.ecg_stream_start_tick = HAL_GetTick();
-        g_ecg_rec.start_tick = g_ecg_rec.ecg_stream_start_tick;
+        if (RECORD_RATE_ISO_ENABLE_ECG) {
+          Safe_USB_Printf("[REC] before MAX30003_StartStream tick=%lu\r\n",
+                          (unsigned long)HAL_GetTick());
+          MAX30003_StartStream();
+          g_ecg_rec.ecg_stream_start_tick = HAL_GetTick();
+          g_ecg_rec.start_tick = g_ecg_rec.ecg_stream_start_tick;
+        } else {
+          g_ecg_rec.ecg_stream_start_tick = HAL_GetTick();
+          g_ecg_rec.start_tick = g_ecg_rec.ecg_stream_start_tick;
+          SD_DebugLog_WriteLine("RATE_ISO_SYNTHETIC_STREAM_START");
+        }
         ecg_streaming = 1;
         if (s_icm_ready) {
-          ICM20948_EnableDataReadyInterrupt();
+          if (RECORD_RATE_ISO_ICM_BATCH) {
+            if (ICM20948_EnableAccelGyroFifo() != 0U) {
+              g_i2c3_rate_iso_error_count++;
+            }
+          } else {
+            ICM20948_EnableDataReadyInterrupt();
+          }
         }
-        Safe_USB_Printf("[REC] after MAX30003_StartStream tick=%lu start_tick=%lu\r\n",
+        APP_Log_RateIsoConfig_To_SD();
+        Safe_USB_Printf("[REC] after stream start tick=%lu start_tick=%lu\r\n",
                         (unsigned long)HAL_GetTick(),
                         (unsigned long)g_ecg_rec.start_tick);
         g_ecg_rec.auto_stop_ms = g_ecg_rec.requested_record_ms;
@@ -694,17 +903,19 @@ void StartTask_Sensor(void *argument)
 
       if (g_ecg_rec.state == ECG_REC_RECORDING) {
         ecg_streaming = 0;
-        MAX30003_StopStream();
+        if (RECORD_RATE_ISO_ENABLE_ECG) {
+          MAX30003_StopStream();
+        }
         g_ecg_rec.ecg_stream_stop_tick = HAL_GetTick();
 
-        if (Mtx_I2C3Handle != NULL) osMutexAcquire(Mtx_I2C3Handle, osWaitForever);
+        uint32_t i2c_stop_t = APP_I2C3_AcquireDiag(1U);
         if (s_ppg_ready) {
           (void)MAX30102_DisableInterrupts();
         }
         if (s_icm_ready) {
           ICM20948_DisableDataReadyInterrupt();
         }
-        if (Mtx_I2C3Handle != NULL) osMutexRelease(Mtx_I2C3Handle);
+        APP_I2C3_ReleaseDiag(1U, i2c_stop_t);
 
         // [DEBUG] 璺宠繃 I2C 鎿嶄綔閬垮厤 NACK 鎸傛
         // MAX30102_DisableInterrupts();
@@ -713,7 +924,10 @@ void StartTask_Sensor(void *argument)
         g_ecg_rec.state = ECG_REC_STOPPING;
         finalize_after_stop = 1;
 
-        MAX30003_DiagLog_Stop();
+        if (RECORD_RATE_ISO_ENABLE_ECG) {
+          MAX30003_DiagLog_Stop();
+        }
+        APP_Log_RateIsoDiag_To_SD();
         Safe_USB_Printf("[REC_STOP]\r\n");
       }
     }
@@ -727,6 +941,9 @@ void StartTask_Sensor(void *argument)
         g_ecg_rec.state = ECG_REC_STOPPED;
       g_session.tick_end_ms = HAL_GetTick();
       g_session.duration_ms = g_session.tick_end_ms - g_session.tick_start_ms;
+      if (RECORD_RATE_ISO_NO_SD) {
+        (void)MultiSensorLogger_WriteRateIsoNoSdCsv();
+      }
       Session_WriteMeta();
       Session_WriteDiagSummary();
       Session_WriteModalitySummary();
@@ -765,8 +982,10 @@ void StartTask_Sensor(void *argument)
           g_ecg_rec.diag_notify_timeouts++;
         }
         uint32_t _t_max30003_0 = HAL_GetTick();
-        MAX30003_Task();
-        MAX30003_DiagLog_Run();
+        if (RECORD_RATE_ISO_ENABLE_ECG) {
+          MAX30003_Task();
+          MAX30003_DiagLog_Run();
+        }
         {
           uint32_t _elapsed = HAL_GetTick() - _t_max30003_0;
           if (_elapsed > g_ecg_rec.diag_max3003_task_us_max) g_ecg_rec.diag_max3003_task_us_max = _elapsed;
@@ -786,7 +1005,9 @@ void StartTask_Sensor(void *argument)
     static uint32_t last_lead_poll = 0;
     if (HAL_GetTick() - last_lead_poll >= 250) {
         last_lead_poll = HAL_GetTick();
-        MAX30003_PollLeadStatus();
+        if (RECORD_RATE_ISO_ENABLE_ECG) {
+          MAX30003_PollLeadStatus();
+        }
 
   /* Diagnostic: explicit EN_MIC control for Case B/D/E/F */
 #if RECORD_DIAG_AUDIO_EN_MIC_ON
@@ -836,6 +1057,7 @@ void StartTask_PPG(void *argument)
 
   for (;;) {
     uint32_t notified = ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(RECORD_PPG_FIFO_DRAIN_TIMEOUT_MS));
+    g_ppg_task_call_count++;
 
     if (!s_ppg_ready || !ecg_streaming || g_ecg_rec.state != ECG_REC_RECORDING) {
       if (RECORD_FAIL_STREAK_RESETS_WHEN_IDLE) {
@@ -861,15 +1083,16 @@ void StartTask_PPG(void *argument)
       uint32_t red_buf[RECORD_PPG_FIFO_DRAIN_MAX_SAMPLES];
       uint32_t fail_before = g_max30102_fifo_read_fail_count;
 
-      if (Mtx_I2C3Handle != NULL) osMutexAcquire(Mtx_I2C3Handle, osWaitForever);
+      uint32_t ppg_i2c_t = APP_I2C3_AcquireDiag(1U);
       uint8_t n = MAX30102_ReadFIFO_Batch(ir_buf, red_buf, RECORD_PPG_FIFO_DRAIN_MAX_SAMPLES);
       if (g_max30102_fifo_read_fail_count != fail_before) {
+        g_i2c3_rate_iso_error_count++;
         ppg_fail_streak++;
         APP_I2C3_RecoverRecordingSensors();
       } else if (n > 0U) {
         ppg_fail_streak = 0;
       }
-      if (Mtx_I2C3Handle != NULL) osMutexRelease(Mtx_I2C3Handle);
+      APP_I2C3_ReleaseDiag(1U, ppg_i2c_t);
 
       if (ppg_fail_streak >= RECORD_PPG_FAIL_STREAK_LIMIT) {
         if (RECORD_FAILED_MODALITY_REINITS_NEXT_START) {
@@ -921,6 +1144,7 @@ void StartTask_IMU(void *argument)
   uint32_t imu_fail_streak = 0;
 
   for (;;) {
+    g_imu_task_call_count++;
     if (!s_icm_ready || !ecg_streaming || g_ecg_rec.state != ECG_REC_RECORDING) {
       if (RECORD_FAIL_STREAK_RESETS_WHEN_IDLE) {
         imu_fail_streak = 0;
@@ -940,9 +1164,25 @@ void StartTask_IMU(void *argument)
 
     int16_t ax, ay, az, gx, gy, gz;
 
-    if (Mtx_I2C3Handle != NULL) osMutexAcquire(Mtx_I2C3Handle, osWaitForever);
-    uint8_t imu_read = ICM20948_ReadAccelGyroRaw(&ax, &ay, &az, &gx, &gy, &gz);
-    if (Mtx_I2C3Handle != NULL) osMutexRelease(Mtx_I2C3Handle);
+    uint32_t imu_i2c_t = APP_I2C3_AcquireDiag(0U);
+    uint8_t imu_read;
+    if (RECORD_RATE_ISO_ICM_BATCH) {
+      int16_t axb[8], ayb[8], azb[8], gxb[8], gyb[8], gzb[8];
+      imu_read = ICM20948_ReadFifoAccelGyroBatch(axb, ayb, azb, gxb, gyb, gzb, 8U);
+      APP_I2C3_ReleaseDiag(0U, imu_i2c_t);
+      if (imu_read > 0U) {
+        g_imu_read_ok_count += imu_read;
+        imu_fail_streak = 0;
+        for (uint8_t i = 0; i < imu_read; i++) {
+          MultiSensorLogger_AddIMU(axb[i], ayb[i], azb[i], gxb[i], gyb[i], gzb[i]);
+        }
+        continue;
+      }
+      imu_read = 1U;
+    } else {
+      imu_read = ICM20948_ReadAccelGyroRaw(&ax, &ay, &az, &gx, &gy, &gz);
+      APP_I2C3_ReleaseDiag(0U, imu_i2c_t);
+    }
 
     if (imu_read == 0) {
       g_imu_read_ok_count++;
@@ -950,10 +1190,11 @@ void StartTask_IMU(void *argument)
       MultiSensorLogger_AddIMU(ax, ay, az, gx, gy, gz);
     } else {
       g_imu_read_fail_count++;
+      g_i2c3_rate_iso_error_count++;
       imu_fail_streak++;
-      if (Mtx_I2C3Handle != NULL) osMutexAcquire(Mtx_I2C3Handle, osWaitForever);
+      imu_i2c_t = APP_I2C3_AcquireDiag(0U);
       APP_I2C3_RecoverRecordingSensors();
-      if (Mtx_I2C3Handle != NULL) osMutexRelease(Mtx_I2C3Handle);
+      APP_I2C3_ReleaseDiag(0U, imu_i2c_t);
       if (imu_fail_streak >= RECORD_IMU_FAIL_STREAK_LIMIT) {
         if (RECORD_FAILED_MODALITY_REINITS_NEXT_START) {
           s_icm_ready = 0U;

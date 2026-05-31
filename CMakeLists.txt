@@ -136,6 +136,10 @@ target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined symbols
 )
 
+if(DEFINED RECORD_RATE_ISO_CASE)
+    target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE RECORD_RATE_ISO_CASE=${RECORD_RATE_ISO_CASE})
+endif()
+
 # Add linked libraries
 target_link_libraries(${CMAKE_PROJECT_NAME}
     stm32cubemx

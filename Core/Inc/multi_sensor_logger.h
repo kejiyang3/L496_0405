@@ -95,6 +95,7 @@ extern osMessageQueueId_t Q_MultiSensorBlockHandle;
 void MultiSensorLogger_InitQueue(void);
 void MultiSensorLogger_ResetForNewRecording(void);
 void MultiSensorLogger_RequestStopAndFlush(void);
+int MultiSensorLogger_WriteRateIsoNoSdCsv(void);
 uint8_t MultiSensorLogger_IsFileOpened(void);
 void MultiSensorLogger_GetStats(MS_Stats_t *stats);
 

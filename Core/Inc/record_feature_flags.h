@@ -1,11 +1,11 @@
 #ifndef RECORD_FEATURE_FLAGS_H
 #define RECORD_FEATURE_FLAGS_H
 
-#define RECORD_ENABLE_LVGL 1
+#define RECORD_ENABLE_LVGL 0  /* v0.3: LVGL off */
 #define RECORD_ENABLE_PPG 1
 #define RECORD_ENABLE_ICM 1
 #define RECORD_DEFAULT_RECORD_MS 90000U
-#define RECORD_ENABLE_AUDIO 1
+#define RECORD_ENABLE_AUDIO 0  /* v0.3: MIC disabled */
 
 /* ===== MAX30003 + AudioTask / MIC Conflict Diagnostic ===== */
 /* RECORD_DIAG_CASE: 0=normal, 1=CaseA, 2=CaseB, 3=CaseC, 4=CaseD, 5=CaseE, 6=CaseF */
@@ -105,6 +105,135 @@
 /* === P2: Disable PA8 FCLK MCO (test MAX30003 internal RC fallback) === */
 #define RECORD_TEST_P2_DISABLE_FCLK_MCO 0
 
+
+/* v0.3: PPG avg1 for 50 Hz (permanent) */
+#define RECORD_TARGET_PPG_AVG1 1
+
+/* === PPG / ICM20948 rate isolation experiments === */
+/* 0=normal, 1=PPG-only avg4, 2=PPG-only avg1, 3=ICM-only,
+ * 4=ICM-only FIFO/batch probe, 5=PPG+ICM, 6=PPG+ICM no-SD,
+ * 7=ECG+PPG+ICM no-MIC. */
+#ifndef RECORD_RATE_ISO_CASE
+#define RECORD_RATE_ISO_CASE 0
 #endif
 
+#define RECORD_RATE_ISO_ENABLE_ECG   ((RECORD_RATE_ISO_CASE) == 0 || (RECORD_RATE_ISO_CASE) == 7)
+#define RECORD_RATE_ISO_NO_SD        ((RECORD_RATE_ISO_CASE) == 6)
+#define RECORD_RATE_ISO_PPG_AVG1     ((RECORD_RATE_ISO_CASE) == 2)
+#define RECORD_RATE_ISO_ICM_BATCH    ((RECORD_RATE_ISO_CASE) == 4)
 
+#if RECORD_RATE_ISO_CASE == 1
+  #undef  RECORD_ENABLE_PPG
+  #define RECORD_ENABLE_PPG 1
+  #undef  RECORD_ENABLE_ICM
+  #define RECORD_ENABLE_ICM 0
+  #undef  RECORD_ENABLE_AUDIO
+  #define RECORD_ENABLE_AUDIO 0
+  #undef  RECORD_ENABLE_LVGL
+  #define RECORD_ENABLE_LVGL 0
+  #define RECORD_RATE_ISO_LABEL "PPG_ONLY_AVG4"
+#elif RECORD_RATE_ISO_CASE == 2
+  #undef  RECORD_ENABLE_PPG
+  #define RECORD_ENABLE_PPG 1
+  #undef  RECORD_ENABLE_ICM
+  #define RECORD_ENABLE_ICM 0
+  #undef  RECORD_ENABLE_AUDIO
+  #define RECORD_ENABLE_AUDIO 0
+  #undef  RECORD_ENABLE_LVGL
+  #define RECORD_ENABLE_LVGL 0
+  #define RECORD_RATE_ISO_LABEL "PPG_ONLY_AVG1"
+#elif RECORD_RATE_ISO_CASE == 3
+  #undef  RECORD_ENABLE_PPG
+  #define RECORD_ENABLE_PPG 0
+  #undef  RECORD_ENABLE_ICM
+  #define RECORD_ENABLE_ICM 1
+  #undef  RECORD_ENABLE_AUDIO
+  #define RECORD_ENABLE_AUDIO 0
+  #undef  RECORD_ENABLE_LVGL
+  #define RECORD_ENABLE_LVGL 0
+  #define RECORD_RATE_ISO_LABEL "ICM_ONLY"
+#elif RECORD_RATE_ISO_CASE == 4
+  #undef  RECORD_ENABLE_PPG
+  #define RECORD_ENABLE_PPG 0
+  #undef  RECORD_ENABLE_ICM
+  #define RECORD_ENABLE_ICM 1
+  #undef  RECORD_ENABLE_AUDIO
+  #define RECORD_ENABLE_AUDIO 0
+  #undef  RECORD_ENABLE_LVGL
+  #define RECORD_ENABLE_LVGL 0
+  #define RECORD_RATE_ISO_LABEL "ICM_ONLY_BATCH"
+#elif RECORD_RATE_ISO_CASE == 5
+  #undef  RECORD_ENABLE_PPG
+  #define RECORD_ENABLE_PPG 1
+  #undef  RECORD_ENABLE_ICM
+  #define RECORD_ENABLE_ICM 1
+  #undef  RECORD_ENABLE_AUDIO
+  #define RECORD_ENABLE_AUDIO 0
+  #undef  RECORD_ENABLE_LVGL
+  #define RECORD_ENABLE_LVGL 0
+  #define RECORD_RATE_ISO_LABEL "PPG_ICM"
+#elif RECORD_RATE_ISO_CASE == 6
+  #undef  RECORD_ENABLE_PPG
+  #define RECORD_ENABLE_PPG 1
+  #undef  RECORD_ENABLE_ICM
+  #define RECORD_ENABLE_ICM 1
+  #undef  RECORD_ENABLE_AUDIO
+  #define RECORD_ENABLE_AUDIO 0
+  #undef  RECORD_ENABLE_LVGL
+  #define RECORD_ENABLE_LVGL 0
+  #undef  RECORD_DIAG_DISABLE_CSV_WRITER
+  #define RECORD_DIAG_DISABLE_CSV_WRITER 1
+  #define RECORD_RATE_ISO_LABEL "PPG_ICM_NO_SD"
+#elif RECORD_RATE_ISO_CASE == 7
+  #undef  RECORD_ENABLE_PPG
+  #define RECORD_ENABLE_PPG 1
+  #undef  RECORD_ENABLE_ICM
+  #define RECORD_ENABLE_ICM 1
+  #undef  RECORD_ENABLE_AUDIO
+  #define RECORD_ENABLE_AUDIO 0
+  #undef  RECORD_ENABLE_LVGL
+  #define RECORD_ENABLE_LVGL 0
+  #define RECORD_RATE_ISO_LABEL "ECG_PPG_ICM_NO_MIC"
+#else
+  #define RECORD_RATE_ISO_LABEL "NORMAL"
+#endif
+
+/* ===== MIC SAI DMA Stall Experiment Modes ===== */
+/* 0=normal, 1=MIC-only no-SD(RAM), 2=MIC-only with-SD, 3=four-modal 90s */
+#define RECORD_EXP_MIC_STALL_MODE 3
+
+#if RECORD_EXP_MIC_STALL_MODE == 1
+  /* MIC-only, no SD: RAM counting, disable other sensors */
+  #undef  RECORD_ENABLE_PPG
+  #define RECORD_ENABLE_PPG 0
+  #undef  RECORD_ENABLE_ICM
+  #define RECORD_ENABLE_ICM 0
+  #undef  RECORD_ENABLE_LVGL
+  #define RECORD_ENABLE_LVGL 0
+  #undef  RECORD_DIAG_DISABLE_ALL_SD_WRITES
+  #define RECORD_DIAG_DISABLE_ALL_SD_WRITES 1
+  #define RECORD_EXP_LABEL "MIC_NO_SD"
+#elif RECORD_EXP_MIC_STALL_MODE == 2
+  /* MIC-only, with SD: keep SD writes, disable other sensors */
+  #undef  RECORD_ENABLE_PPG
+  #define RECORD_ENABLE_PPG 0
+  #undef  RECORD_ENABLE_ICM
+  #define RECORD_ENABLE_ICM 0
+  #undef  RECORD_ENABLE_LVGL
+  #define RECORD_ENABLE_LVGL 0
+  #define RECORD_EXP_LABEL "MIC_SD"
+#elif RECORD_EXP_MIC_STALL_MODE == 3
+  /* Four-modal 90s: normal operation */
+  #define RECORD_DEFAULT_RECORD_MS 90000U  /* v0.3: 90s default */
+  #define RECORD_EXP_LABEL "THREE_MODAL_30MIN"
+#else
+  /* Normal mode */
+  #define RECORD_EXP_LABEL "NORMAL"
+#endif
+
+#if RECORD_RATE_ISO_CASE > 0
+  #undef  RECORD_DEFAULT_RECORD_MS
+  #define RECORD_DEFAULT_RECORD_MS 30000U
+#endif
+
+#endif

@@ -1,5 +1,6 @@
 #include "icm20948.h"
 #include "gpio.h"
+#include "record_feature_flags.h"
 extern void Safe_USB_Printf(const char *format, ...);
 
 IMU_Data_t imu_data = {0};
@@ -82,12 +83,12 @@ uint8_t ICM20948_Init(void)
 
     if (Soft_I2C_WriteReg_Checked(ICM20948_ADDR, 0x09, 0x01) != HAL_OK) return 3; // ODR_ALIGN_EN
 
-    /* Accel ODR = 1125Hz / (1 + div): div=21 -> 51.14Hz */
+    /* Accel ODR = 1125Hz / (1 + div): div=10 -> 102.27Hz (v0.3) */
     if (Soft_I2C_WriteReg_Checked(ICM20948_ADDR, 0x10, 0x00) != HAL_OK) return 3;
-    if (Soft_I2C_WriteReg_Checked(ICM20948_ADDR, 0x11, 0x15) != HAL_OK) return 3;
+    if (Soft_I2C_WriteReg_Checked(ICM20948_ADDR, 0x11, 0x0A) != HAL_OK) return 3;
 
-    /* Gyro ODR = 1125Hz / (1 + div): div=21 -> 51.14Hz */
-    if (Soft_I2C_WriteReg_Checked(ICM20948_ADDR, 0x00, 0x15) != HAL_OK) return 3;
+    /* Gyro ODR = 1125Hz / (1 + div): div=10 -> 102.27Hz (v0.3) */
+    if (Soft_I2C_WriteReg_Checked(ICM20948_ADDR, 0x00, 0x0A) != HAL_OK) return 3;
 
     /* --- 3. 磁力计 AK09916 + I2C Master (编译开关) --- */
 #if ICM20948_ENABLE_MAG_MASTER
@@ -201,6 +202,12 @@ uint8_t ICM20948_ReadBank0Reg_Debug(uint8_t reg)
 HAL_StatusTypeDef ICM20948_ReadBank0Reg_Checked(uint8_t reg, uint8_t *val)
 {
     if (ICM_SelectBank_Checked(0) != HAL_OK) return HAL_ERROR;
+    return Soft_I2C_ReadReg_Checked(ICM20948_ADDR, reg, val);
+}
+
+HAL_StatusTypeDef ICM20948_ReadBank2Reg_Checked(uint8_t reg, uint8_t *val)
+{
+    if (ICM_SelectBank_Checked(2) != HAL_OK) return HAL_ERROR;
     return Soft_I2C_ReadReg_Checked(ICM20948_ADDR, reg, val);
 }
 
