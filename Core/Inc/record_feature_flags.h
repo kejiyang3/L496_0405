@@ -9,7 +9,7 @@
 
 /* ===== MAX30003 + AudioTask / MIC Conflict Diagnostic ===== */
 /* RECORD_DIAG_CASE: 0=normal, 1=CaseA, 2=CaseB, 3=CaseC, 4=CaseD, 5=CaseE, 6=CaseF */
-#define RECORD_DIAG_CASE 0
+#define RECORD_DIAG_CASE 6  /* v0.3 M1: All MIC ON (WAV low-pri) */
 
 #if RECORD_DIAG_CASE >= 1
   /* Case mode: each case enables exactly one additional layer vs Case A */
@@ -200,7 +200,7 @@
 
 /* ===== MIC SAI DMA Stall Experiment Modes ===== */
 /* 0=normal, 1=MIC-only no-SD(RAM), 2=MIC-only with-SD, 3=four-modal 90s */
-#define RECORD_EXP_MIC_STALL_MODE 3
+#define RECORD_EXP_MIC_STALL_MODE 0
 
 #if RECORD_EXP_MIC_STALL_MODE == 1
   /* MIC-only, no SD: RAM counting, disable other sensors */
@@ -225,7 +225,7 @@
 #elif RECORD_EXP_MIC_STALL_MODE == 3
   /* Four-modal 90s: normal operation */
   #define RECORD_DEFAULT_RECORD_MS 90000U  /* v0.3: 90s default */
-  #define RECORD_EXP_LABEL "THREE_MODAL_30MIN"
+  #define RECORD_EXP_LABEL "NORMAL"
 #else
   /* Normal mode */
   #define RECORD_EXP_LABEL "NORMAL"
