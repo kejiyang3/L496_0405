@@ -9,7 +9,7 @@
 
 /* ===== MAX30003 + AudioTask / MIC Conflict Diagnostic ===== */
 /* RECORD_DIAG_CASE: 0=normal, 1=CaseA, 2=CaseB, 3=CaseC, 4=CaseD, 5=CaseE, 6=CaseF */
-#define RECORD_DIAG_CASE 6  /* v0.3 M1: All MIC ON (WAV low-pri) */
+#define RECORD_DIAG_CASE 0  /* v0.3 M1: All MIC ON (WAV low-pri) */
 
 #if RECORD_DIAG_CASE >= 1
   /* Case mode: each case enables exactly one additional layer vs Case A */

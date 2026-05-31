@@ -254,3 +254,12 @@ Paste this into a new Codex conversation when the current one gets long:
 - DEVICE1_MIC_CONTROLLED_REINTRODUCTION_ON_V03: A1-3/M0/M1/M2Ã—3/M3 NOT YET EXECUTED.
 - P0 next: Execute freeze longrun (äº¤æŽ¥æ–‡ä»¶äºŒ) on device 1.
 
+
+## 2026-05-31 Session 2: Handoff Review + Config Normalization
+
+- Reviewed all three handoff documents: delivered full status summary to user.
+- Code commit (6134c1a): RECORD_DIAG_CASE=6, RECORD_EXP_MIC_STALL_MODE=0 ¡ú NORMAL mode, ready for MIC reintroduction experiments.
+- Feishu sync: NO.019 change record added (config normalization commit).
+- No experiment execution today. All three-device matrices remain pending.
+- Key reminder: ½»½ÓÎÄ¼þ¶þ (config freeze longrun) and ½»½ÓÎÄ¼þÈý (MIC reintroduction) still need hardware execution on device 1.
+
