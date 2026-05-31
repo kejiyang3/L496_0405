@@ -237,3 +237,20 @@ Paste this into a new Codex conversation when the current one gets long:
 5. 濡傛灉涓婁笅鏂囦娇鐢ㄦ帴杩?60%锛岃涓诲姩鏁寸悊鏂扮殑 Handoff Prompt锛屽苟鎻愰啋鎴戝紑鏂板璇濄€?
 ```
 
+
+## 2026-05-31: Session Summary
+
+- Read three handoff documents and surfaced key goals to user.
+- **交接文件一** (PPG_ICM_RATE_ISOLATION_HANDOFF.md): 7 isolation experiments completed. Root cause confirmed: PPG~12.5Hz=FIFO avg4, ICM~52Hz=div21. Not I2C3 contention, not SD bottleneck.
+- **交接文件二** (DEVICE1_CORE_CONFIG_FREEZE_LONGRUN.md): Target config freeze: MIC OFF, PPG=50Hz+avg1, ICM=div10~102Hz. Matrix: A1-3(90s), B1-3(5min), C1(30min). Goal: v0.3-core-three-modal-stable.
+- **交接文件三** (DEVICE1_MIC_CONTROLLED_REINTRODUCTION_ON_V03.md): MIC phased reintroduction A→M0→M1→M2×3→M3. Core principle: MIC must never degrade ECG/PPG/ICM.
+- Git commit+pushed to https://github.com/kejiyang3/L496_0405 (master: 6317f86).
+- Feishu sync: 3 new change records added to tblBG9rNbAvC6zUk.
+
+## Current State
+
+- v0.3-core-three-modal-stable baseline confirmed: PPG 50.14-50.43Hz, IMU 104.23-104.25Hz, ECG 488.56-489.00Hz, i2c_err=0, queue_fail=0, sd_err=0.
+- DEVICE1_CORE_CONFIG_FREEZE_LONGRUN: A1-3/B1-3/C1 experiment matrix NOT YET EXECUTED.
+- DEVICE1_MIC_CONTROLLED_REINTRODUCTION_ON_V03: A1-3/M0/M1/M2×3/M3 NOT YET EXECUTED.
+- P0 next: Execute freeze longrun (交接文件二) on device 1.
+
