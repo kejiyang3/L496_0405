@@ -28,8 +28,8 @@ _Static_assert(MAX30102_EXPECTED_SAMPLE_RATE_HZ == RECORD_PPG_SAMPLE_RATE_HZ,
                "MAX30102 register configuration and logger sample-rate metadata must match");
 _Static_assert(MAX30102_SPO2_CONFIG_50SPS_18B == 0x22U,
                "MAX30102 stable mode must be 50 SPS, 18-bit pulse width");
-_Static_assert(MAX30102_FIFO_CONFIG_STABLE == 0x5FU,
-               "MAX30102 must use 4-sample FIFO averaging first; no-averaging 50Hz overloads the shared I2C3/TXS0104 path");
+_Static_assert(MAX30102_FIFO_CONFIG_STABLE == 0x1FU,
+               "v0.3 PPG must use avg1 so 50 Hz produces 50 Hz output");
 _Static_assert(MAX30102_INT_ENABLE_RECORDING == 0xC0U,
                "MAX30102 recording must enable A_FULL and PPG_RDY interrupts so PC2 is the primary read trigger");
 _Static_assert(MAX30102_FIFO_POINTER_SNAPSHOT_BYTES == 3U,

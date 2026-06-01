@@ -4,8 +4,8 @@ _Static_assert(RECORD_FAIL_FAST_ON_MODALITY_ERROR == 1,
                "four-modal recording must stop the session when one modality fails");
 _Static_assert(RECORD_AUDIO_REOPEN_SAME_SEQ_ALLOWED == 0,
                "audio must not reopen and truncate the same WAV after a runtime write failure");
-_Static_assert(RECORD_AUDIO_ERROR_REQUESTS_STOP == 1,
-               "audio runtime write/sync errors must request a whole-session stop");
+_Static_assert(RECORD_AUDIO_ERROR_REQUESTS_STOP == 0,
+               "MIC must remain a low-priority attached modality and not stop the core session");
 _Static_assert(RECORD_REQUIRE_PPG_FOR_FOUR_MODAL == 1,
                "four-modal recording must not start when MAX30102 is not ready");
 _Static_assert(RECORD_REQUIRE_ICM_FOR_FOUR_MODAL == 1,

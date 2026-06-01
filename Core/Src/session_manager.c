@@ -40,17 +40,24 @@ extern volatile uint16_t g_icm_fifo_count;
 #define RECORD_FEATURE_FLAGS_DEFINED
 #include "record_feature_flags.h"
 #include "multi_sensor_logger.h"
+#include "audio_recorder.h"
 
 SessionInfo_t g_session = {0};
+
+void Session_Reset(void)
+{
+    memset(&g_session, 0, sizeof(g_session));
+}
 
 int Session_Create(uint32_t tick_now)
 {
     if (g_session.created) return 0;
 
     snprintf(g_session.session_id, sizeof(g_session.session_id),
-             "%04u%02u%02u_%02u%02u%02u",
+             "%04u%02u%02u_%02u%02u%02u_T%08lu",
              SESSION_DEFAULT_YEAR, SESSION_DEFAULT_MONTH, SESSION_DEFAULT_DAY,
-             SESSION_DEFAULT_HOUR, SESSION_DEFAULT_MIN, SESSION_DEFAULT_SEC);
+             SESSION_DEFAULT_HOUR, SESSION_DEFAULT_MIN, SESSION_DEFAULT_SEC,
+             (unsigned long)tick_now);
 
     snprintf(g_session.session_dir, sizeof(g_session.session_dir),
              "%s/%s", SESSION_DIR_PREFIX, g_session.session_id);
@@ -91,16 +98,24 @@ int Session_WriteMeta(void)
              SESSION_DEFAULT_YEAR, SESSION_DEFAULT_MONTH, SESSION_DEFAULT_DAY,
              (unsigned)eh, (unsigned)em, (unsigned)ess);
 
-    char path[64];
+    char path[80];
     snprintf(path, sizeof(path), "%s/session.txt", g_session.session_dir);
 
     FIL fp; FRESULT res;
     if (Mtx_SDCardHandle != NULL) osMutexAcquire(Mtx_SDCardHandle, osWaitForever);
     res = f_open(&fp, path, FA_CREATE_ALWAYS | FA_WRITE);
     if (res == FR_OK) {
-        char buf[1536];
+        const char *mic_status =
+            ((unsigned)RECORD_EXPERIMENT_ENABLE_WAV && g_audio_recorder_diag.file_open_ok == 0U) ? "MIC_NO_WAV" :
+            ((unsigned)RECORD_EXPERIMENT_ENABLE_WAV && g_audio_recorder_diag.wav_header_finalized == 0U) ? "MIC_WAV_HEADER_FAIL" :
+            "MIC_OK";
+        char buf[3072];
         int len = snprintf(buf, sizeof(buf),
+            "experiment_mode=%s\r\n"
             "session_id=%s\r\n"
+            "session_dir=%s\r\n"
+            "requested_duration_ms=%lu\r\n"
+            "actual_duration_ms=%lu\r\n"
             "device_time_start=%s\r\n"
             "device_time_end=%s\r\n"
             "start_tick_ms=%lu\r\n"
@@ -116,8 +131,52 @@ int Session_WriteMeta(void)
             "audio_actual_bytes=%lu\r\n"
             "ppg_enabled=%u\r\n"
             "imu_enabled=%u\r\n"
-            "audio_enabled=%u\r\n",
+            "audio_enabled=%u\r\n"
+            "wav_enabled=%u\r\n"
+            "core_enabled=%u\r\n"
+            "mic_enabled=%u\r\n"
+            "mic_mode=%s\r\n"
+            "mic_status=%s\r\n"
+            "mic_wav_expected=%u\r\n"
+            "mic_wav_path=%s\r\n"
+            "mic_file_open_attempted=%lu\r\n"
+            "mic_file_open_ok=%lu\r\n"
+            "mic_file_open_result=%ld\r\n"
+            "mic_file_close_attempted=%lu\r\n"
+            "mic_file_close_ok=%lu\r\n"
+            "mic_file_close_result=%ld\r\n"
+            "mic_file_bytes=%lu\r\n"
+            "mic_wav_data_bytes=%lu\r\n"
+            "mic_wav_sample_rate=%lu\r\n"
+            "mic_wav_header_finalized=%lu\r\n"
+            "mic_last_fresult=%ld\r\n"
+            "mic_last_error=%lu\r\n"
+            "mic_audio_task_started=%lu\r\n"
+            "mic_sai_dma_started=%lu\r\n"
+            "mic_dma_half_count=%lu\r\n"
+            "mic_dma_full_count=%lu\r\n"
+            "mic_last_dma_tick=%lu\r\n"
+            "mic_last_write_tick=%lu\r\n"
+            "mic_blocks_in=%lu\r\n"
+            "mic_blocks_written=%lu\r\n"
+            "mic_blocks_dropped=%lu\r\n"
+            "mic_blocks_write_failed=%lu\r\n"
+            "mic_drop_count=%lu\r\n"
+            "mic_stall_count=%lu\r\n"
+            "mic_effective_duration=%lu\r\n"
+            "mic_power_pin=GPIOB12\r\n"
+            "mic_power_active_level=HIGH\r\n"
+            "mic_power_on_count=%lu\r\n"
+            "mic_power_off_count=%lu\r\n"
+            "mic_power_on_tick=%lu\r\n"
+            "mic_power_off_tick=%lu\r\n"
+            "mic_power_state_at_start=%lu\r\n"
+            "mic_power_state_at_stop=%lu\r\n",
+            RECORD_EXPERIMENT_LABEL,
             g_session.session_id,
+            g_session.session_dir,
+            (unsigned long)RECORD_DEFAULT_RECORD_MS,
+            (unsigned long)g_session.duration_ms,
             g_session.dt_start, g_session.dt_end,
             (unsigned long)g_session.tick_start_ms,
             (unsigned long)g_session.tick_end_ms,
@@ -133,7 +192,46 @@ int Session_WriteMeta(void)
             (unsigned long)g_ecg_rec.mic_bytes,
             (unsigned)RECORD_ENABLE_PPG,
             (unsigned)RECORD_ENABLE_ICM,
-            (unsigned)RECORD_ENABLE_AUDIO);
+            (unsigned)RECORD_ENABLE_AUDIO,
+            (unsigned)RECORD_EXPERIMENT_ENABLE_WAV,
+            (unsigned)RECORD_EXPERIMENT_ENABLE_CORE,
+            (unsigned)RECORD_EXPERIMENT_ENABLE_MIC,
+            (unsigned)RECORD_EXPERIMENT_ENABLE_WAV ? "WAV" :
+                ((unsigned)RECORD_EXPERIMENT_ENABLE_MIC_DMA ? "DMA_ONLY" : "OFF"),
+            mic_status,
+            (unsigned)RECORD_EXPERIMENT_ENABLE_WAV,
+            g_audio_recorder_diag.wav_path,
+            (unsigned long)g_audio_recorder_diag.file_open_attempted,
+            (unsigned long)g_audio_recorder_diag.file_open_ok,
+            (long)g_audio_recorder_diag.file_open_result,
+            (unsigned long)g_audio_recorder_diag.file_close_attempted,
+            (unsigned long)g_audio_recorder_diag.file_close_ok,
+            (long)g_audio_recorder_diag.file_close_result,
+            (unsigned long)g_audio_recorder_diag.file_bytes,
+            (unsigned long)g_audio_recorder_diag.wav_data_bytes,
+            (unsigned long)g_audio_recorder_diag.wav_sample_rate,
+            (unsigned long)g_audio_recorder_diag.wav_header_finalized,
+            (long)g_audio_recorder_diag.last_fresult,
+            (unsigned long)g_audio_recorder_diag.last_error,
+            (unsigned long)g_audio_recorder_diag.audio_task_started,
+            (unsigned long)g_audio_recorder_diag.sai_dma_started,
+            (unsigned long)g_audio_recorder_diag.dma_half_count,
+            (unsigned long)g_audio_recorder_diag.dma_full_count,
+            (unsigned long)g_audio_recorder_diag.last_dma_tick,
+            (unsigned long)g_audio_recorder_diag.last_write_tick,
+            (unsigned long)g_audio_recorder_diag.blocks_in,
+            (unsigned long)g_audio_recorder_diag.blocks_written,
+            (unsigned long)g_audio_recorder_diag.blocks_dropped,
+            (unsigned long)g_audio_recorder_diag.blocks_write_failed,
+            (unsigned long)g_ecg_rec.mic_drops,
+            (unsigned long)g_audio_recorder_diag.stall_count,
+            (unsigned long)AudioRecorder_GetDurationMs(),
+            (unsigned long)g_audio_recorder_diag.power_on_count,
+            (unsigned long)g_audio_recorder_diag.power_off_count,
+            (unsigned long)g_audio_recorder_diag.power_on_tick,
+            (unsigned long)g_audio_recorder_diag.power_off_tick,
+            (unsigned long)g_audio_recorder_diag.power_state_at_start,
+            (unsigned long)g_audio_recorder_diag.power_state_at_stop);
         UINT bw;
         f_write(&fp, buf, (UINT)len, &bw);
         f_close(&fp);
@@ -146,7 +244,7 @@ int Session_WriteDiagSummary(void)
 {
     if (!g_session.created) return -1;
 
-    char path[64];
+    char path[80];
     snprintf(path, sizeof(path), "%s/diag_summary.txt", g_session.session_dir);
 
     FIL fp; FRESULT res;
@@ -154,7 +252,7 @@ int Session_WriteDiagSummary(void)
     res = f_open(&fp, path, FA_CREATE_ALWAYS | FA_WRITE);
     if (res == FR_OK) {
         UINT bw;
-        char line[384];
+        char line[640];
 #define WRITE_DIAG_LINE(...) do { \
             int n__ = snprintf(line, sizeof(line), __VA_ARGS__); \
             if (n__ > 0 && n__ < (int)sizeof(line)) { \
@@ -176,6 +274,31 @@ int Session_WriteDiagSummary(void)
         WRITE_DIAG_LINE("task_calls=%lu\r\n", (unsigned long)g_ecg_rec.diag_task_calls);
         WRITE_DIAG_LINE("notify_wakes=%lu\r\n", (unsigned long)g_ecg_rec.diag_notify_wakes);
         WRITE_DIAG_LINE("notify_timeouts=%lu\r\n", (unsigned long)g_ecg_rec.diag_notify_timeouts);
+        WRITE_DIAG_LINE("experiment_mode=%s\r\n", RECORD_EXPERIMENT_LABEL);
+        WRITE_DIAG_LINE("session_id=%s\r\n", g_session.session_id);
+        WRITE_DIAG_LINE("session_dir=%s\r\n", g_session.session_dir);
+        WRITE_DIAG_LINE("requested_duration_ms=%lu\r\n", (unsigned long)RECORD_DEFAULT_RECORD_MS);
+        WRITE_DIAG_LINE("actual_duration_ms=%lu\r\n", (unsigned long)g_session.duration_ms);
+        WRITE_DIAG_LINE("audio_enabled=%u\r\n", (unsigned)RECORD_ENABLE_AUDIO);
+        WRITE_DIAG_LINE("wav_enabled=%u\r\n", (unsigned)RECORD_EXPERIMENT_ENABLE_WAV);
+        WRITE_DIAG_LINE("core_enabled=%u\r\n", (unsigned)RECORD_EXPERIMENT_ENABLE_CORE);
+        WRITE_DIAG_LINE("MIC_STATUS=%s\r\n",
+                        ((unsigned)RECORD_EXPERIMENT_ENABLE_WAV && g_audio_recorder_diag.file_open_ok == 0U) ? "MIC_NO_WAV" :
+                        ((unsigned)RECORD_EXPERIMENT_ENABLE_WAV && g_audio_recorder_diag.wav_header_finalized == 0U) ? "MIC_WAV_HEADER_FAIL" :
+                        "MIC_OK");
+        WRITE_DIAG_LINE("MIC_WAV,mic_wav_path=%s,mic_file_open_attempted=%lu,mic_file_open_ok=%lu,mic_file_open_result=%ld,mic_file_bytes=%lu,mic_wav_data_bytes=%lu,mic_blocks_in=%lu,mic_blocks_written=%lu,mic_blocks_dropped=%lu,mic_last_error=%lu,mic_dma_half_count=%lu,mic_dma_full_count=%lu\r\n",
+                        g_audio_recorder_diag.wav_path,
+                        (unsigned long)g_audio_recorder_diag.file_open_attempted,
+                        (unsigned long)g_audio_recorder_diag.file_open_ok,
+                        (long)g_audio_recorder_diag.file_open_result,
+                        (unsigned long)g_audio_recorder_diag.file_bytes,
+                        (unsigned long)g_audio_recorder_diag.wav_data_bytes,
+                        (unsigned long)g_audio_recorder_diag.blocks_in,
+                        (unsigned long)g_audio_recorder_diag.blocks_written,
+                        (unsigned long)g_audio_recorder_diag.blocks_dropped,
+                        (unsigned long)g_audio_recorder_diag.last_error,
+                        (unsigned long)g_audio_recorder_diag.dma_half_count,
+                        (unsigned long)g_audio_recorder_diag.dma_full_count);
         WRITE_DIAG_LINE("RATE_ISO_CONFIG,case=%u,label=%s,ecg=%u,ppg=%u,icm=%u,audio=%u,no_sd=%u,ppg_avg1=%u,icm_batch=%u\r\n",
                         (unsigned)RECORD_RATE_ISO_CASE, RECORD_RATE_ISO_LABEL,
                         (unsigned)RECORD_RATE_ISO_ENABLE_ECG, (unsigned)RECORD_ENABLE_PPG,
@@ -221,7 +344,7 @@ int Session_WriteModalitySummary(void)
     MS_Stats_t stats;
     MultiSensorLogger_GetStats(&stats);
 
-    char path[64];
+    char path[80];
     snprintf(path, sizeof(path), "%s/modality_summary.csv", g_session.session_dir);
 
     FIL fp; FRESULT res;

@@ -59,9 +59,34 @@ static int16_t s_pcm_half[AUDIO_PCM_HALF_SAMPLES];
 AudioRunDiag_t g_audio_run_diag = {0};
 AudioStallCapture_t g_audio_stall_captures[AUDIO_STALL_CAPTURE_COUNT] = {0};
 volatile uint32_t g_audio_stall_capture_count = 0;
+AudioRecorderDiag_t g_audio_recorder_diag = {0};
 
 
 static void build_wav_header(uint8_t hdr[44], uint32_t data_bytes, uint32_t sample_rate_hz);
+
+static void audio_diag_reset_for_session(const char *path)
+{
+    memset(&g_audio_recorder_diag, 0, sizeof(g_audio_recorder_diag));
+    if (path != NULL) {
+        snprintf(g_audio_recorder_diag.wav_path,
+                 sizeof(g_audio_recorder_diag.wav_path),
+                 "%s", path);
+    }
+    g_audio_recorder_diag.wav_sample_rate = RECORD_MIC_SAMPLE_RATE_HZ;
+    g_audio_recorder_diag.audio_task_started = 1U;
+}
+
+static void audio_diag_note_power(GPIO_PinState state)
+{
+    uint32_t now = HAL_GetTick();
+    if (state == GPIO_PIN_SET) {
+        g_audio_recorder_diag.power_on_count++;
+        g_audio_recorder_diag.power_on_tick = now;
+    } else {
+        g_audio_recorder_diag.power_off_count++;
+        g_audio_recorder_diag.power_off_tick = now;
+    }
+}
 
 static uint32_t audio_missed_half_count(void)
 {
@@ -125,6 +150,13 @@ static FRESULT audio_update_header_and_sync_locked(void)
         res = f_sync(&s_audio_file);
     }
 
+    g_audio_recorder_diag.last_fresult = (int32_t)res;
+    g_audio_recorder_diag.wav_data_bytes = s_audio_bytes;
+    g_audio_recorder_diag.file_bytes = s_audio_bytes + 44U;
+    if (res != FR_OK) {
+        g_audio_recorder_diag.last_error = (uint32_t)res;
+    }
+
     return res;
 }
 
@@ -178,6 +210,9 @@ static FRESULT audio_write_locked(const void *data, UINT len)
 #endif
             s_audio_mutex_timeouts++;
             g_sd_audio_diag.acquire_timeout++;
+            g_audio_recorder_diag.blocks_dropped++;
+            g_audio_recorder_diag.last_error = FR_TIMEOUT;
+            g_audio_recorder_diag.last_fresult = FR_TIMEOUT;
             return FR_TIMEOUT;
         }
         wait_ms = HAL_GetTick() - tw;
@@ -221,16 +256,25 @@ static FRESULT audio_write_locked(const void *data, UINT len)
         s_audio_bytes += bw;
         g_ecg_rec.mic_bytes = s_audio_bytes;
         g_sd_audio_diag.bytes_written += bw;
+        g_audio_recorder_diag.bytes_written = s_audio_bytes;
+        g_audio_recorder_diag.wav_data_bytes = s_audio_bytes;
+        g_audio_recorder_diag.file_bytes = s_audio_bytes + 44U;
+        g_audio_recorder_diag.blocks_written++;
+        g_audio_recorder_diag.last_write_tick = HAL_GetTick();
+        g_audio_recorder_diag.last_fresult = FR_OK;
         return FR_OK;
     }
 
     g_sd_audio_diag.write_error++;
+    g_audio_recorder_diag.blocks_write_failed++;
+    g_audio_recorder_diag.last_fresult = (int32_t)((res == FR_OK) ? FR_DISK_ERR : res);
+    g_audio_recorder_diag.last_error = (uint32_t)g_audio_recorder_diag.last_fresult;
     return (res == FR_OK) ? FR_DISK_ERR : res;
 }
 
 static uint8_t audio_open_file(uint32_t seq)
 {
-    char path[32];
+    char path[64];  /* was 32, overflowed with _R00x suffix */
     uint8_t hdr[44];
     UINT bw = 0;
     FRESULT res;
@@ -246,12 +290,22 @@ static uint8_t audio_open_file(uint32_t seq)
     } else {
         snprintf(path, sizeof(path), "0:/mic_%03lu.wav", (unsigned long)seq);
     }
+    audio_diag_reset_for_session(path);
+    g_audio_recorder_diag.file_open_attempted = 1U;
+    if (RECORD_DIAG_AUDIO_EN_MIC_ON) {
+        g_audio_recorder_diag.power_on_count = 1U;
+        g_audio_recorder_diag.power_on_tick = g_ecg_rec.mic_power_tick;
+        g_audio_recorder_diag.power_state_at_start = 1U;
+    }
 #if RECORD_TEST_AUDIO_WRITE_ONLY_NO_SYNC
     /* F2: skip WAV header entirely, just open raw file */
     (void)hdr;
     if (Mtx_SDCardHandle != NULL) {
         if (osMutexAcquire(Mtx_SDCardHandle, pdMS_TO_TICKS(20)) != osOK) {
             Safe_USB_Printf("[MIC][ERR] mutex timeout before open\r\n");
+            g_audio_recorder_diag.file_open_result = FR_TIMEOUT;
+            g_audio_recorder_diag.last_fresult = FR_TIMEOUT;
+            g_audio_recorder_diag.last_error = FR_TIMEOUT;
             return 0;
         }
     }
@@ -271,6 +325,9 @@ static uint8_t audio_open_file(uint32_t seq)
     if (Mtx_SDCardHandle != NULL) {
         if (osMutexAcquire(Mtx_SDCardHandle, pdMS_TO_TICKS(20)) != osOK) {
             Safe_USB_Printf("[MIC][ERR] mutex timeout before open\r\n");
+            g_audio_recorder_diag.file_open_result = FR_TIMEOUT;
+            g_audio_recorder_diag.last_fresult = FR_TIMEOUT;
+            g_audio_recorder_diag.last_error = FR_TIMEOUT;
             return 0;
         }
     }
@@ -292,6 +349,9 @@ static uint8_t audio_open_file(uint32_t seq)
         Safe_USB_Printf("[MIC][ERR] open/header res=%d bw=%lu file=%s\r\n",
                         res, (unsigned long)bw, path);
         g_ecg_rec.mic_write_errors++;
+        g_audio_recorder_diag.file_open_result = (int32_t)((res == FR_OK) ? FR_DISK_ERR : res);
+        g_audio_recorder_diag.last_fresult = g_audio_recorder_diag.file_open_result;
+        g_audio_recorder_diag.last_error = (uint32_t)g_audio_recorder_diag.file_open_result;
         return 0;
     }
 
@@ -309,6 +369,11 @@ static uint8_t audio_open_file(uint32_t seq)
     g_ecg_rec.mic_halves = 0;
     g_ecg_rec.mic_drops = 0;
     g_ecg_rec.mic_write_errors = 0;
+    g_audio_recorder_diag.file_open_ok = 1U;
+    g_audio_recorder_diag.file_open_result = FR_OK;
+    g_audio_recorder_diag.last_fresult = FR_OK;
+    g_audio_recorder_diag.file_bytes = 44U;
+    g_audio_recorder_diag.wav_data_bytes = 0U;
     Safe_USB_Printf("[MIC] open ok file=%s\r\n", path);
     return 1;
 }
@@ -335,6 +400,7 @@ static void audio_close_file(void)
     if (!s_audio_file_open) {
         return;
     }
+    g_audio_recorder_diag.file_close_attempted = 1U;
 
 #if RECORD_TEST_AUDIO_WRITE_ONLY_NO_SYNC
     /* F2: skip header update, just close */
@@ -343,6 +409,9 @@ static void audio_close_file(void)
         if (osMutexAcquire(Mtx_SDCardHandle, pdMS_TO_TICKS(20)) != osOK) {
             s_audio_mutex_timeouts++;
             s_audio_file_open = 0;
+            g_audio_recorder_diag.file_close_result = FR_TIMEOUT;
+            g_audio_recorder_diag.last_fresult = FR_TIMEOUT;
+            g_audio_recorder_diag.last_error = FR_TIMEOUT;
             return;
         }
     }
@@ -355,6 +424,9 @@ static void audio_close_file(void)
         if (osMutexAcquire(Mtx_SDCardHandle, pdMS_TO_TICKS(20)) != osOK) {
             s_audio_mutex_timeouts++;
             s_audio_file_open = 0;
+            g_audio_recorder_diag.file_close_result = FR_TIMEOUT;
+            g_audio_recorder_diag.last_fresult = FR_TIMEOUT;
+            g_audio_recorder_diag.last_error = FR_TIMEOUT;
             return;
         }
     }
@@ -381,6 +453,23 @@ static void audio_close_file(void)
     g_ecg_rec.mic_bytes = s_audio_bytes;
     g_ecg_rec.mic_halves = s_audio_halves;
     audio_update_drop_count();
+    g_audio_recorder_diag.file_close_result = (int32_t)close_res;
+    g_audio_recorder_diag.file_close_ok =
+        (seek_res == FR_OK && write_res == FR_OK && sync_res == FR_OK &&
+         close_res == FR_OK && bw == sizeof(hdr)) ? 1U : 0U;
+    g_audio_recorder_diag.wav_header_finalized = g_audio_recorder_diag.file_close_ok;
+    g_audio_recorder_diag.file_bytes = s_audio_bytes + 44U;
+    g_audio_recorder_diag.wav_data_bytes = s_audio_bytes;
+    g_audio_recorder_diag.bytes_captured = s_audio_bytes;
+    g_audio_recorder_diag.bytes_written = s_audio_bytes;
+    g_audio_recorder_diag.blocks_dropped = g_ecg_rec.mic_drops;
+    g_audio_recorder_diag.last_fresult = (int32_t)(
+        seek_res != FR_OK ? seek_res :
+        write_res != FR_OK ? write_res :
+        sync_res != FR_OK ? sync_res : close_res);
+    if (!g_audio_recorder_diag.file_close_ok) {
+        g_audio_recorder_diag.last_error = (uint32_t)g_audio_recorder_diag.last_fresult;
+    }
     {
         char stats[192];
         int n = snprintf(stats, sizeof(stats),
@@ -464,6 +553,10 @@ static uint8_t audio_write_half(uint32_t *src, uint32_t words)
 
     s_audio_halves++;
     g_ecg_rec.mic_halves = s_audio_halves;
+    g_audio_recorder_diag.blocks_in++;
+    g_audio_recorder_diag.bytes_captured = s_audio_bytes;
+    g_audio_recorder_diag.blocks_dropped =
+        s_audio_dma_drops + s_audio_mutex_timeouts + audio_missed_half_count();
     audio_update_drop_count();
 
     if ((s_audio_halves % AUDIO_SYNC_EVERY_HALVES) == 0U) {
@@ -477,12 +570,18 @@ static uint8_t audio_write_half(uint32_t *src, uint32_t words)
             if (osMutexAcquire(Mtx_SDCardHandle, pdMS_TO_TICKS(20)) != osOK) {
                 s_audio_mutex_timeouts++;
                 g_ecg_rec.mic_drops = s_audio_dma_drops + s_audio_mutex_timeouts;
-                audio_request_session_stop_on_error("MIC_ERROR_SYNC_MUTEX_TIMEOUT_REQUEST_STOP");
-                return 0;
+                g_audio_recorder_diag.blocks_dropped = g_ecg_rec.mic_drops;
+                g_audio_recorder_diag.stall_count++;
+                g_audio_recorder_diag.last_error = FR_TIMEOUT;
+                g_audio_recorder_diag.last_fresult = FR_TIMEOUT;
+                /* P4: sync mutex timeout - count, don`t break recording */
+                sync_res = FR_TIMEOUT;
+            } else {
+                sync_res = audio_update_header_and_sync_locked();
             }
+        } else {
+            sync_res = audio_update_header_and_sync_locked();
         }
-
-        sync_res = audio_update_header_and_sync_locked();
 #endif
 
 #if !RECORD_TEST_AUDIO_WRITE_ONLY_NO_SYNC && !RECORD_TEST_AUDIO_NO_PERIODIC_SYNC && !RECORD_FIX_AUDIO_NONBLOCKING_DISCARD
@@ -493,6 +592,9 @@ static uint8_t audio_write_half(uint32_t *src, uint32_t words)
 
         if (sync_res != FR_OK) {
             g_ecg_rec.mic_write_errors++;
+            g_audio_recorder_diag.blocks_write_failed++;
+            g_audio_recorder_diag.last_fresult = sync_res;
+            g_audio_recorder_diag.last_error = sync_res;
             Safe_USB_Printf("[MIC][ERR] periodic sync res=%d bytes=%lu\r\n",
                             sync_res, (unsigned long)s_audio_bytes);
             audio_request_session_stop_on_error("MIC_ERROR_SYNC_REQUEST_STOP");
@@ -523,8 +625,10 @@ static void audio_notify_from_isr(uint32_t bit)
         if (xTaskNotifyFromISR(s_audio_task_handle, bit, eSetBits,
                                &higher_priority_woken) != pdPASS) {
             s_audio_dma_drops++;
+            g_audio_recorder_diag.blocks_dropped++;
         }
         s_audio_half_irq_count++;
+        g_audio_recorder_diag.last_dma_tick = HAL_GetTick();
         portYIELD_FROM_ISR(higher_priority_woken);
     }
 }
@@ -532,6 +636,7 @@ static void audio_notify_from_isr(uint32_t bit)
 void HAL_SAI_RxHalfCpltCallback(SAI_HandleTypeDef *hsai)
 {
     if (hsai == &hsai_BlockA1) {
+        g_audio_recorder_diag.dma_half_count++;
         audio_notify_from_isr(AUDIO_NOTIFY_HALF0);
     }
 }
@@ -539,6 +644,7 @@ void HAL_SAI_RxHalfCpltCallback(SAI_HandleTypeDef *hsai)
 void HAL_SAI_RxCpltCallback(SAI_HandleTypeDef *hsai)
 {
     if (hsai == &hsai_BlockA1) {
+        g_audio_recorder_diag.dma_full_count++;
         audio_notify_from_isr(AUDIO_NOTIFY_HALF1);
     }
 }
@@ -547,6 +653,8 @@ void HAL_SAI_ErrorCallback(SAI_HandleTypeDef *hsai)
 {
     if (hsai == &hsai_BlockA1) {
         s_audio_dma_drops++;
+        g_audio_recorder_diag.blocks_dropped++;
+        g_audio_recorder_diag.last_error = hsai->ErrorCode;
     }
 }
 
@@ -559,8 +667,10 @@ void AudioRecorder_Task(void *argument)
 {
     (void)argument;
     s_audio_task_handle = xTaskGetCurrentTaskHandle();
+    g_audio_recorder_diag.audio_task_started = 1U;
 
     HAL_GPIO_WritePin(EN_MIC_GPIO_Port, EN_MIC_Pin, GPIO_PIN_RESET);
+    audio_diag_note_power(GPIO_PIN_RESET);
 
     for (;;) {
         while (g_ecg_rec.state != ECG_REC_RECORDING || !g_ecg_rec.sd_file_opened) {
@@ -593,12 +703,19 @@ void AudioRecorder_Task(void *argument)
         g_audio_run_diag.audio_state = 2;
         g_audio_run_diag.sai_dma_started++;
         g_ecg_rec.mic_power_tick = HAL_GetTick();
-        if (RECORD_DIAG_AUDIO_EN_MIC_ON) { HAL_GPIO_WritePin(EN_MIC_GPIO_Port, EN_MIC_Pin, GPIO_PIN_SET); }
+        g_audio_recorder_diag.power_state_at_start = 0U;
+        if (RECORD_DIAG_AUDIO_EN_MIC_ON) {
+            HAL_GPIO_WritePin(EN_MIC_GPIO_Port, EN_MIC_Pin, GPIO_PIN_SET);
+            audio_diag_note_power(GPIO_PIN_SET);
+            g_audio_recorder_diag.power_state_at_start = 1U;
+        }
         osDelay(50);
 
         if (RECORD_DIAG_AUDIO_MIC_SD_WRITE && !RECORD_DIAG_DISABLE_ALL_SD_WRITES && !audio_open_file(seq)) {
             s_audio_recording_active = 0;
             HAL_GPIO_WritePin(EN_MIC_GPIO_Port, EN_MIC_Pin, GPIO_PIN_RESET);
+            audio_diag_note_power(GPIO_PIN_RESET);
+            g_audio_recorder_diag.power_state_at_stop = 0U;
             if (g_ecg_rec.state == ECG_REC_RECORDING &&
                 s_audio_failed_seq == seq &&
                 RECORD_AUDIO_ERROR_REQUESTS_STOP) {
@@ -622,6 +739,8 @@ void AudioRecorder_Task(void *argument)
             if (!RECORD_DIAG_DISABLE_ALL_SD_WRITES) { audio_close_file(); }
             s_audio_recording_active = 0;
             HAL_GPIO_WritePin(EN_MIC_GPIO_Port, EN_MIC_Pin, GPIO_PIN_RESET);
+            audio_diag_note_power(GPIO_PIN_RESET);
+            g_audio_recorder_diag.power_state_at_stop = 0U;
             osDelay(500);
             continue;
         }
@@ -638,6 +757,11 @@ void AudioRecorder_Task(void *argument)
                                                     AUDIO_DMA_WORDS);
         }
         g_ecg_rec.mic_dma_start_tick = HAL_GetTick();
+        if (ret == HAL_OK) {
+            g_audio_recorder_diag.sai_dma_started = 1U;
+        } else {
+            g_audio_recorder_diag.last_error = (uint32_t)ret;
+        }
         /* priority stays at creation level, below SensorTask */
         Safe_USB_Printf("[MIC] dma_start ret=%d words=%lu bytes=%lu\r\n",
                         ret, (unsigned long)AUDIO_DMA_WORDS,
@@ -647,6 +771,8 @@ void AudioRecorder_Task(void *argument)
             if (!RECORD_DIAG_DISABLE_ALL_SD_WRITES) { audio_close_file(); }
             s_audio_recording_active = 0;
             HAL_GPIO_WritePin(EN_MIC_GPIO_Port, EN_MIC_Pin, GPIO_PIN_RESET);
+            audio_diag_note_power(GPIO_PIN_RESET);
+            g_audio_recorder_diag.power_state_at_stop = 0U;
             osDelay(500);
             continue;
         }
@@ -681,6 +807,8 @@ void AudioRecorder_Task(void *argument)
         if (!RECORD_DIAG_DISABLE_ALL_SD_WRITES) { audio_close_file(); }
         s_audio_recording_active = 0;
         HAL_GPIO_WritePin(EN_MIC_GPIO_Port, EN_MIC_Pin, GPIO_PIN_RESET);
+        audio_diag_note_power(GPIO_PIN_RESET);
+        g_audio_recorder_diag.power_state_at_stop = 0U;
 
         while (g_ecg_rec.state == ECG_REC_STOPPING ||
                g_ecg_rec.state == ECG_REC_STOPPED) {
@@ -702,7 +830,7 @@ void AudioRecorder_Task(void *argument)
 
 
 
-/* ===== AUDIO_RUN 璇婃柇瀹炵幇 ===== */
+/* ===== AUDIO_RUN diagnostics ===== */
 
 void AudioRunDiag_Reset(void)
 {
@@ -787,6 +915,7 @@ void AudioStallCapture_LogAll(void)
                  (unsigned long)cap->hal_sai_state,
                  (unsigned long)cap->hal_sai_error,
                  (unsigned long)cap->hal_dma_state);
+        (void)n;
         Safe_USB_Printf("%s\r\n", line);
     }
 }

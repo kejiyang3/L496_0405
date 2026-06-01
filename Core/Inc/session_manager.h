@@ -8,8 +8,8 @@ extern "C" {
 #endif
 
 #define SESSION_DIR_PREFIX  "/REC"
-#define SESSION_ID_LEN      16
-#define SESSION_DIR_LEN     32
+#define SESSION_ID_LEN      32
+#define SESSION_DIR_LEN     48
 #define SESSION_DT_LEN      20
 
 #define SESSION_DEFAULT_YEAR   2026
@@ -33,6 +33,7 @@ typedef struct {
 extern SessionInfo_t g_session;
 
 int  Session_Create(uint32_t tick_now);
+void Session_Reset(void);
 int  Session_WriteMeta(void);
 int  Session_WriteDiagSummary(void);
 int  Session_WriteModalitySummary(void);

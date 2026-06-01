@@ -381,7 +381,7 @@ static void APP_Log_RateIsoConfig_To_SD(void)
   APP_I2C3_ReleaseDiag(0U, t);
 
   {
-    char line[384];
+    char line[512];
     g_ppg_ie1 = ppg_ie1;
     g_ppg_fifo_cfg = ppg_fifo;
     g_ppg_mode = ppg_mode;
@@ -773,6 +773,7 @@ void StartTask_Sensor(void *argument)
 
         ECG_UpdateFileName();
         SD_DebugLog_StartNewFile(g_ecg_rec.file_seq);
+        Session_Reset();
         g_ecg_rec.state = ECG_REC_RECORDING;
 
         MultiSensorLogger_ResetForNewRecording();

@@ -282,20 +282,17 @@ def _get_file_once(ser, filename, output, timeout, resume_offset=0):
     _last_received_bytes = len(data)
 
 # 鈹€鈹€ get-all 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
-def get_all_files(ser, output_dir, timeout):
-    """List files, then download each one with resume support."""
-    out_path = Path(output_dir)
-    out_path.mkdir(parents=True, exist_ok=True)
-
-    # Do LS
-    send_command(ser, "LS")
+def list_dir(ser, path, timeout):
+    command = "LS" if path in ("", "/", None) else f"LS {path}"
+    send_command(ser, command)
     deadline = time.monotonic() + timeout
     files = []
+    dirs = []
     while True:
         line = read_line(ser, deadline)
         if line is None:
             continue
-        if line.startswith("[END LS]"):
+        if line.startswith("[END LS]") or line.startswith("[END "):
             break
         if line.startswith("[ERR "):
             raise SystemExit(line)
@@ -303,7 +300,6 @@ def get_all_files(ser, output_dir, timeout):
         if m:
             fsize = int(m.group(1))
             fname = m.group(2).strip()
-            # Skip system directories
             if fname.lower() == "system volume information":
                 continue
             files.append((fname, fsize))
@@ -312,22 +308,80 @@ def get_all_files(ser, output_dir, timeout):
         if m_dir:
             dname = m_dir.group(1).strip()
             if dname.lower() != "system volume information":
+                dirs.append(dname)
                 print(f"  [DIR] {dname}  (skipped)")
+    return dirs, files
 
-    if not files:
+
+def join_remote(parent, child):
+    child = child.strip("/")
+    if parent in ("", "/"):
+        return "/" + child
+    return parent.rstrip("/") + "/" + child
+
+
+def list_recursive(ser, root, timeout):
+    dirs, files = list_dir(ser, root, timeout)
+    entries = []
+    for fname, fsize in files:
+        remote = join_remote(root, fname)
+        entries.append((remote, fsize))
+        print(f"FILE {fsize} {remote}")
+    for dname in dirs:
+        remote_dir = join_remote(root, dname)
+        print(f"DIR {remote_dir}")
+        try:
+            entries.extend(list_recursive(ser, remote_dir, timeout))
+        except SystemExit as e:
+            print(f"  WARN: cannot recurse {remote_dir}: {e}")
+    return entries
+
+
+def get_all_files(ser, output_dir, timeout):
+    """Recursively download all SD files, preserving directory structure."""
+    out_path = Path(output_dir)
+    out_path.mkdir(parents=True, exist_ok=True)
+
+    entries = list_recursive(ser, "/", timeout)
+
+    if not entries:
         print("No files to download.")
         return
 
-    print(f"\nDownloading {len(files)} file(s) to {output_dir}/\n")
+    print(f"\nDownloading {len(entries)} file(s) to {output_dir}/\n")
 
-    for fname, fsize in files:
-        dest = out_path / fname
+    for remote, fsize in entries:
+        rel = remote.strip("/").replace("/", os.sep)
+        dest = out_path / rel
+        dest.parent.mkdir(parents=True, exist_ok=True)
         est_timeout = max(timeout, fsize / 1024.0 + 5.0)
-        print(f"--- {fname} ({fsize} bytes) ---")
+        print(f"--- {remote} ({fsize} bytes) ---")
         try:
-            get_file(ser, fname, str(dest), est_timeout, resume_offset=0, max_retries=3)
+            get_file(ser, remote, str(dest), est_timeout, resume_offset=0, max_retries=3)
         except SystemExit as e:
             print(f"  FAILED: {e}", )
+
+
+def pull_session(ser, session_path, output_dir, timeout):
+    out_path = Path(output_dir)
+    out_path.mkdir(parents=True, exist_ok=True)
+    entries = list_recursive(ser, session_path, timeout)
+    wanted = {
+        "session.txt",
+        "modality_summary.csv",
+        "diag_summary.txt",
+        "ecg_samples.csv",
+        "audio.wav",
+        "audio_blocks.csv",
+    }
+    for remote, fsize in entries:
+        name = Path(remote).name
+        if name not in wanted:
+            continue
+        dest = out_path / name
+        est_timeout = max(timeout, fsize / 1024.0 + 5.0)
+        print(f"--- {remote} ({fsize} bytes) ---")
+        get_file(ser, remote, str(dest), est_timeout, resume_offset=0, max_retries=3)
 
 # 鈹€鈹€ CLI 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 def main():
@@ -357,6 +411,13 @@ def main():
     all_p = sub.add_parser("get-all")
     all_p.add_argument("-o", "--output", default="sd_pull", help="Output directory")
 
+    rec_p = sub.add_parser("list-recursive")
+    rec_p.add_argument("path", nargs="?", default="/")
+
+    pull_p = sub.add_parser("pull-session")
+    pull_p.add_argument("path")
+    pull_p.add_argument("-o", "--output", required=True)
+
     args = parser.parse_args()
 
     port = args.port or auto_port()
@@ -377,6 +438,10 @@ def main():
                          resume_offset=args.resume)
             elif args.cmd == "get-all":
                 get_all_files(ser, args.output, args.timeout)
+            elif args.cmd == "list-recursive":
+                list_recursive(ser, args.path, args.timeout)
+            elif args.cmd == "pull-session":
+                pull_session(ser, args.path, args.output, args.timeout)
     finally:
         release_lock()
 
