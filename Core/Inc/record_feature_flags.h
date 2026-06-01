@@ -3,7 +3,7 @@
 
 #include "record_experiment_config.h"
 
-#define RECORD_ENABLE_LVGL 0  /* v0.3: LVGL off */
+#define RECORD_ENABLE_LVGL 1  /* v0.4 demo: LVGL on for display */
 #define RECORD_ENABLE_PPG RECORD_EXPERIMENT_ENABLE_PPG
 #define RECORD_ENABLE_ICM RECORD_EXPERIMENT_ENABLE_ICM
 #define RECORD_DEFAULT_RECORD_MS RECORD_EXPERIMENT_DURATION_MS
@@ -132,7 +132,7 @@
   #undef  RECORD_ENABLE_AUDIO
   #define RECORD_ENABLE_AUDIO 0
   #undef  RECORD_ENABLE_LVGL
-  #define RECORD_ENABLE_LVGL 0
+  #define RECORD_ENABLE_LVGL 1  /* v0.4 demo: LVGL on for display */
   #define RECORD_RATE_ISO_LABEL "PPG_ONLY_AVG4"
 #elif RECORD_RATE_ISO_CASE == 2
   #undef  RECORD_ENABLE_PPG
@@ -142,7 +142,7 @@
   #undef  RECORD_ENABLE_AUDIO
   #define RECORD_ENABLE_AUDIO 0
   #undef  RECORD_ENABLE_LVGL
-  #define RECORD_ENABLE_LVGL 0
+  #define RECORD_ENABLE_LVGL 1  /* v0.4 demo: LVGL on for display */
   #define RECORD_RATE_ISO_LABEL "PPG_ONLY_AVG1"
 #elif RECORD_RATE_ISO_CASE == 3
   #undef  RECORD_ENABLE_PPG
@@ -152,7 +152,7 @@
   #undef  RECORD_ENABLE_AUDIO
   #define RECORD_ENABLE_AUDIO 0
   #undef  RECORD_ENABLE_LVGL
-  #define RECORD_ENABLE_LVGL 0
+  #define RECORD_ENABLE_LVGL 1  /* v0.4 demo: LVGL on for display */
   #define RECORD_RATE_ISO_LABEL "ICM_ONLY"
 #elif RECORD_RATE_ISO_CASE == 4
   #undef  RECORD_ENABLE_PPG
@@ -162,7 +162,7 @@
   #undef  RECORD_ENABLE_AUDIO
   #define RECORD_ENABLE_AUDIO 0
   #undef  RECORD_ENABLE_LVGL
-  #define RECORD_ENABLE_LVGL 0
+  #define RECORD_ENABLE_LVGL 1  /* v0.4 demo: LVGL on for display */
   #define RECORD_RATE_ISO_LABEL "ICM_ONLY_BATCH"
 #elif RECORD_RATE_ISO_CASE == 5
   #undef  RECORD_ENABLE_PPG
@@ -172,7 +172,7 @@
   #undef  RECORD_ENABLE_AUDIO
   #define RECORD_ENABLE_AUDIO 0
   #undef  RECORD_ENABLE_LVGL
-  #define RECORD_ENABLE_LVGL 0
+  #define RECORD_ENABLE_LVGL 1  /* v0.4 demo: LVGL on for display */
   #define RECORD_RATE_ISO_LABEL "PPG_ICM"
 #elif RECORD_RATE_ISO_CASE == 6
   #undef  RECORD_ENABLE_PPG
@@ -182,7 +182,7 @@
   #undef  RECORD_ENABLE_AUDIO
   #define RECORD_ENABLE_AUDIO 0
   #undef  RECORD_ENABLE_LVGL
-  #define RECORD_ENABLE_LVGL 0
+  #define RECORD_ENABLE_LVGL 1  /* v0.4 demo: LVGL on for display */
   #undef  RECORD_DIAG_DISABLE_CSV_WRITER
   #define RECORD_DIAG_DISABLE_CSV_WRITER 1
   #define RECORD_RATE_ISO_LABEL "PPG_ICM_NO_SD"
@@ -194,7 +194,7 @@
   #undef  RECORD_ENABLE_AUDIO
   #define RECORD_ENABLE_AUDIO 0
   #undef  RECORD_ENABLE_LVGL
-  #define RECORD_ENABLE_LVGL 0
+  #define RECORD_ENABLE_LVGL 1  /* v0.4 demo: LVGL on for display */
   #define RECORD_RATE_ISO_LABEL "ECG_PPG_ICM_NO_MIC"
 #else
   #define RECORD_RATE_ISO_LABEL "NORMAL"
@@ -211,7 +211,7 @@
   #undef  RECORD_ENABLE_ICM
   #define RECORD_ENABLE_ICM 0
   #undef  RECORD_ENABLE_LVGL
-  #define RECORD_ENABLE_LVGL 0
+  #define RECORD_ENABLE_LVGL 1  /* v0.4 demo: LVGL on for display */
   #undef  RECORD_DIAG_DISABLE_ALL_SD_WRITES
   #define RECORD_DIAG_DISABLE_ALL_SD_WRITES 1
   #define RECORD_EXP_LABEL "MIC_NO_SD"
@@ -222,7 +222,7 @@
   #undef  RECORD_ENABLE_ICM
   #define RECORD_ENABLE_ICM 0
   #undef  RECORD_ENABLE_LVGL
-  #define RECORD_ENABLE_LVGL 0
+  #define RECORD_ENABLE_LVGL 1  /* v0.4 demo: LVGL on for display */
   #define RECORD_EXP_LABEL "MIC_SD"
 #elif RECORD_EXP_MIC_STALL_MODE == 3
   #define RECORD_EXP_LABEL RECORD_EXPERIMENT_LABEL
