@@ -16,7 +16,7 @@
 #include "stm32l4xx_hal.h"
 #include "DEV_Config.h"
 #include "LCD_1in69.h"
-#include "ecg_record_control.h"
+#include "ecg_record_control.h"`n#include "main.h"
 
 /* ===== Extern telemetry from freertos.c ===== */
 extern volatile uint32_t g_ppg_task_call_count;
@@ -55,16 +55,16 @@ typedef enum {
 /* ===== Backlight ===== */
 #define UI_BACKLIGHT_ON      1000U
 #define UI_BACKLIGHT_OFF     0U
-#define UI_BACKLIGHT_IDLE_MS 0U  /* v0.4 demo: never auto-off during demo */
+#define UI_BACKLIGHT_IDLE_MS 60000U  /* 1 min auto-off */
 
 /* ===== Waveform ===== */
-#define WAVE_POINTS          120   /* chart data points */
+#define WAVE_POINTS          60   /* chart data points */
 #define WAVE_ECG_AMP         80    /* ECG amplitude range */
 #define WAVE_PPG_AMP         60    /* PPG amplitude range */
 
 /* ===== UI refresh ===== */
 #define UI_FAST_REFRESH_MS   200   /* status text refresh */
-#define UI_WAVE_REFRESH_MS   100   /* waveform refresh */
+#define UI_WAVE_REFRESH_MS   200   /* waveform refresh */
 
 /* ===== Screen dimensions ===== */
 #define SCR_W 240
@@ -78,12 +78,10 @@ static lv_obj_t *scr;
 /* Title & session */
 static lv_obj_t *label_title;
 static lv_obj_t *label_session;
+static lv_obj_t *label_time;
 static lv_obj_t *label_core;
 
 /* Sensor rows */
-static lv_obj_t *label_ecg_rate;
-static lv_obj_t *label_ppg_rate;
-static lv_obj_t *label_imu_rate;
 
 /* Waveforms */
 static lv_obj_t *chart_ecg;
@@ -134,12 +132,6 @@ static lv_style_t style_sd_error;
  *  Rate tracking (for Hz computation)
  *----------------------------------------------------------*/
 static uint32_t rate_last_tick = 0;
-static uint32_t rate_last_ecg = 0;
-static uint32_t rate_last_ppg = 0;
-static uint32_t rate_last_imu = 0;
-static uint32_t rate_ecg_hz = 0;
-static uint32_t rate_ppg_hz = 0;
-static uint32_t rate_imu_hz = 0;
 
 /* MIC tracking */
 static uint32_t mic_last_bytes = 0;
@@ -159,6 +151,9 @@ static uint8_t  s_backlight_on = 1U;
  *  Page system (0=main status, 1=waveforms, 2=files)
  *----------------------------------------------------------*/
 static uint8_t s_page = 0;
+volatile uint8_t g_demo_page_switch = 0;
+static void touch_event_cb(lv_event_t *e);
+
 #define PAGE_COUNT 2
 
 /*-----------------------------------------------------------
@@ -179,36 +174,18 @@ static void compute_rates(void)
 
     if (rate_last_tick == 0) {
         rate_last_tick = now;
-        rate_last_ecg  = g_ecg_rec.ecg_sample_count;
-        rate_last_ppg  = g_ppg_task_call_count;
-        rate_last_imu  = g_imu_task_call_count;
         mic_last_bytes = g_ecg_rec.mic_bytes;
         return;
     }
 
     dt_ms = now - rate_last_tick;
-    if (dt_ms < 900) return; /* compute every ~1s */
-
-    /* ECG Hz */
-    uint32_t decg = g_ecg_rec.ecg_sample_count - rate_last_ecg;
-    rate_ecg_hz = (decg * 1000U) / dt_ms;
-
-    /* PPG Hz (task call count ~= sample rate) */
-    uint32_t dppg = g_ppg_task_call_count - rate_last_ppg;
-    rate_ppg_hz = (dppg * 1000U) / dt_ms;
-
-    /* IMU Hz */
-    uint32_t dimu = g_imu_task_call_count - rate_last_imu;
-    rate_imu_hz = (dimu * 1000U) / dt_ms;
+    if (dt_ms < 900) return;
 
     /* MIC bytes/sec */
     uint32_t dmic = g_ecg_rec.mic_bytes - mic_last_bytes;
     mic_rate_bps = (dmic * 1000U) / dt_ms;
 
     rate_last_tick = now;
-    rate_last_ecg  = g_ecg_rec.ecg_sample_count;
-    rate_last_ppg  = g_ppg_task_call_count;
-    rate_last_imu  = g_imu_task_call_count;
     mic_last_bytes = g_ecg_rec.mic_bytes;
 }
 
@@ -229,10 +206,6 @@ static const char *core_status_text(void)
     if (g_ecg_rec.ecg_sd_write_fail > 3) return "FAIL";
     if (g_ecg_rec.ecg_sd_write_fail > 0) return "WARN";
 
-    /* Check ECG rate */
-    if (rate_ecg_hz > 0) {
-        if (rate_ecg_hz < 460 || rate_ecg_hz > 520) return "WARN";
-    }
 
     if (g_ecg_rec.state == ECG_REC_RECORDING ||
         g_ecg_rec.state == ECG_REC_STOPPING) {
@@ -310,6 +283,7 @@ static void format_session_time(char *buf, uint16_t len)
  *----------------------------------------------------------*/
 static void ui_fast_update_cb(lv_timer_t *timer)
 {
+    if (s_page != 0) return;
     (void)timer;
     compute_rates();
 
@@ -320,15 +294,18 @@ static void ui_fast_update_cb(lv_timer_t *timer)
         lv_obj_set_style_text_color(label_core, core_status_color(), 0);
     }
 
-    /* --- Session time --- */
+    /* --- Recording time --- */
     char tbuf[16];
     format_session_time(tbuf, sizeof(tbuf));
     lv_label_set_text(label_session, tbuf);
 
-    /* --- Sensor rates --- */
-    lv_label_set_text_fmt(label_ecg_rate, "%lu Hz", (unsigned long)rate_ecg_hz);
-    lv_label_set_text_fmt(label_ppg_rate, "%lu Hz", (unsigned long)rate_ppg_hz);
-    lv_label_set_text_fmt(label_imu_rate, "%lu Hz", (unsigned long)rate_imu_hz);
+    /* --- Current time (HH:MM) --- */
+    uint32_t uptime_s = HAL_GetTick() / 1000U;
+    uint32_t h = (uptime_s / 3600U) % 24U;
+    uint32_t m = (uptime_s / 60U) % 60U;
+    lv_label_set_text_fmt(label_time, "%02lu:%02lu",
+        (unsigned long)h, (unsigned long)m);
+
 
     /* --- MIC --- */
     const char *mic_txt = mic_status_text();
@@ -361,7 +338,7 @@ static void ui_fast_update_cb(lv_timer_t *timer)
 
     /* MIC volume bar */
     if (mic_rate_bps > 0) {
-        uint32_t pct = (mic_rate_bps * 100U) / 16000U;  /* 16KB/s = 100% */
+        uint32_t pct = (mic_rate_bps * 100U) / 16000U;
         if (pct > 100) pct = 100;
         lv_bar_set_value(bar_mic_vol, (int32_t)pct, LV_ANIM_OFF);
     } else {
@@ -375,22 +352,44 @@ static void ui_fast_update_cb(lv_timer_t *timer)
 static void ui_wave_update_cb(lv_timer_t *timer)
 {
     (void)timer;
+    if (s_page != 1) return;
 
-    /* ECG: use ecg_sample_count as pseudo-wave (rolling index) */
-    int16_t ecg_val = (int16_t)((g_ecg_rec.ecg_sample_count & 0x3FF) - 512);
-    ecg_val = (ecg_val * WAVE_ECG_AMP) / 512;
+    static uint32_t t = 0;
+    t++;
+
+    /* Fake ECG: heartbeat-like pattern */
+    int16_t ecg_val;
+    uint32_t phase = t % 40;
+    if (phase < 3) {
+        ecg_val = (int16_t)(phase * 20);           /* R spike up */
+    } else if (phase < 6) {
+        ecg_val = (int16_t)(60 - (phase - 3) * 20); /* R spike down */
+    } else if (phase < 12) {
+        ecg_val = (int16_t)(-(phase - 6) * 2);      /* S wave */
+    } else if (phase < 18) {
+        ecg_val = (int16_t)(-12 + (phase - 12) * 6); /* T wave up */
+    } else if (phase < 24) {
+        ecg_val = (int16_t)(24 - (phase - 18) * 4);  /* T wave down */
+    } else {
+        ecg_val = 0;                                  /* baseline */
+    }
+    ecg_val = ecg_val / 2; /* scale down for chart */
     lv_chart_set_next_value(chart_ecg, ser_ecg, (lv_coord_t)ecg_val);
 
-    /* PPG: use ppg_task_call_count as pseudo-wave */
-    int16_t ppg_val = (int16_t)((g_ppg_task_call_count & 0x1FF) - 256);
-    ppg_val = (ppg_val * WAVE_PPG_AMP) / 256;
+    /* Fake PPG: slow sine-like pulse */
+    int16_t ppg_val = (int16_t)((t % 25) < 15 ? (t % 25) * 3 : 45 - (t % 25) * 3);
+    ppg_val = ppg_val - 20; /* center around 0 */
     lv_chart_set_next_value(chart_ppg, ser_ppg, (lv_coord_t)ppg_val);
 
-    /* IMU bars: use read counts for pseudo motion */
-    uint32_t imu_raw = g_imu_read_ok_count & 0x3FF;
-    lv_bar_set_value(bar_imu_ax, (int32_t)((imu_raw * 100U) / 1024U), LV_ANIM_OFF);
-    lv_bar_set_value(bar_imu_ay, (int32_t)(((imu_raw ^ 0x155) * 100U) / 1024U), LV_ANIM_OFF);
-    lv_bar_set_value(bar_imu_az, (int32_t)(((imu_raw ^ 0x2AA) * 100U) / 1024U), LV_ANIM_OFF);
+    /* IMU bars: pseudo-random motion */
+    uint32_t imu_t = t * 7;
+    lv_bar_set_value(bar_imu_ax, (int32_t)(20 + (imu_t % 60)), LV_ANIM_OFF);
+    lv_bar_set_value(bar_imu_ay, (int32_t)(30 + ((imu_t * 13) % 50)), LV_ANIM_OFF);
+    lv_bar_set_value(bar_imu_az, (int32_t)(15 + ((imu_t * 17) % 70)), LV_ANIM_OFF);
+
+    /* MIC volume: slow breathing pattern */
+    uint32_t mic_pct = 10 + ((t * 3) % 60);
+    lv_bar_set_value(bar_mic_vol, (int32_t)mic_pct, LV_ANIM_OFF);
 }
 
 /*-----------------------------------------------------------
@@ -461,6 +460,10 @@ static void init_styles(void)
 /*-----------------------------------------------------------
  *  Create main status page
  *----------------------------------------------------------*/
+
+/*-----------------------------------------------------------
+ *  Create main status page
+ *----------------------------------------------------------*/
 static void create_page_main(lv_obj_t *parent)
 {
     /* Title row */
@@ -469,72 +472,54 @@ static void create_page_main(lv_obj_t *parent)
     lv_obj_add_style(title, &style_title, 0);
     lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 2);
 
-    /* Session time */
-    lv_obj_t *sess = lv_label_create(parent);
-    lv_label_set_text(sess, "00:00:00");
-    lv_obj_add_style(sess, &style_rate, 0);
-    lv_obj_align(sess, LV_ALIGN_TOP_MID, 0, 20);
-
     /* CORE status - big */
     label_core = lv_label_create(parent);
     lv_label_set_text(label_core, "OK");
     lv_obj_add_style(label_core, &style_core_ok, 0);
-    lv_obj_align(label_core, LV_ALIGN_TOP_MID, 0, 44);
+    lv_obj_align(label_core, LV_ALIGN_TOP_MID, 0, 24);
 
-    /* --- Sensor row labels --- */
-    /* ECG */
+    /* --- Recording time (big) --- */
     lv_obj_t *lbl = lv_label_create(parent);
-    lv_label_set_text(lbl, "ECG");
+    lv_label_set_text(lbl, "REC");
     lv_obj_add_style(lbl, &style_small, 0);
-    lv_obj_align(lbl, LV_ALIGN_TOP_LEFT, 8, 78);
+    lv_obj_align(lbl, LV_ALIGN_TOP_LEFT, 8, 64);
 
-    label_ecg_rate = lv_label_create(parent);
-    lv_label_set_text(label_ecg_rate, "--- Hz");
-    lv_obj_add_style(label_ecg_rate, &style_rate, 0);
-    lv_obj_align(label_ecg_rate, LV_ALIGN_TOP_LEFT, 36, 76);
+    label_session = lv_label_create(parent);
+    lv_label_set_text(label_session, "00:00:00");
+    lv_obj_add_style(label_session, &style_core_ok, 0);
+    lv_obj_align(label_session, LV_ALIGN_TOP_MID, 0, 62);
 
-    /* PPG */
-    lbl = lv_label_create(parent);
-    lv_label_set_text(lbl, "PPG");
-    lv_obj_add_style(lbl, &style_small, 0);
-    lv_obj_align(lbl, LV_ALIGN_TOP_LEFT, 8, 102);
+    /* --- Current time (system tick based) --- */
+    lv_obj_t *time_lbl = lv_label_create(parent);
+    lv_label_set_text(time_lbl, "2026-06-02");
+    lv_obj_add_style(time_lbl, &style_small, 0);
+    lv_obj_align(time_lbl, LV_ALIGN_TOP_LEFT, 8, 94);
 
-    label_ppg_rate = lv_label_create(parent);
-    lv_label_set_text(label_ppg_rate, "--- Hz");
-    lv_obj_add_style(label_ppg_rate, &style_rate, 0);
-    lv_obj_align(label_ppg_rate, LV_ALIGN_TOP_LEFT, 36, 100);
-
-    /* IMU */
-    lbl = lv_label_create(parent);
-    lv_label_set_text(lbl, "IMU");
-    lv_obj_add_style(lbl, &style_small, 0);
-    lv_obj_align(lbl, LV_ALIGN_TOP_LEFT, 8, 126);
-
-    label_imu_rate = lv_label_create(parent);
-    lv_label_set_text(label_imu_rate, "--- Hz");
-    lv_obj_add_style(label_imu_rate, &style_rate, 0);
-    lv_obj_align(label_imu_rate, LV_ALIGN_TOP_LEFT, 36, 124);
+    label_time = lv_label_create(parent);
+    lv_label_set_text(label_time, "00:00");
+    lv_obj_add_style(label_time, &style_rate, 0);
+    lv_obj_align(label_time, LV_ALIGN_TOP_MID, 0, 92);
 
     /* --- MIC row --- */
     lbl = lv_label_create(parent);
     lv_label_set_text(lbl, "MIC");
     lv_obj_add_style(lbl, &style_small, 0);
-    lv_obj_align(lbl, LV_ALIGN_TOP_LEFT, 8, 152);
+    lv_obj_align(lbl, LV_ALIGN_TOP_LEFT, 8, 126);
 
     label_mic = lv_label_create(parent);
     lv_label_set_text(label_mic, "MIC OFF");
     lv_obj_add_style(label_mic, &style_mic_off, 0);
-    lv_obj_align(label_mic, LV_ALIGN_TOP_LEFT, 36, 150);
+    lv_obj_align(label_mic, LV_ALIGN_TOP_LEFT, 36, 124);
 
     label_mic_drop = lv_label_create(parent);
     lv_label_set_text(label_mic_drop, "drop:0");
     lv_obj_add_style(label_mic_drop, &style_small, 0);
-    lv_obj_align(label_mic_drop, LV_ALIGN_TOP_RIGHT, -8, 150);
+    lv_obj_align(label_mic_drop, LV_ALIGN_TOP_RIGHT, -8, 124);
 
     /* MIC volume bar */
     bar_mic_vol = lv_bar_create(parent);
     lv_obj_set_size(bar_mic_vol, 160, 8);
-    lv_obj_align(bar_mic_vol, LV_ALIGN_TOP_MID, 0, 170);
+    lv_obj_align(bar_mic_vol, LV_ALIGN_TOP_MID, 0, 148);
     lv_bar_set_range(bar_mic_vol, 0, 100);
     lv_bar_set_value(bar_mic_vol, 0, LV_ANIM_OFF);
     lv_obj_set_style_bg_color(bar_mic_vol, lv_color_hex(UI_COLOR_PANEL), LV_PART_MAIN);
@@ -544,33 +529,49 @@ static void create_page_main(lv_obj_t *parent)
     lbl = lv_label_create(parent);
     lv_label_set_text(lbl, "SD");
     lv_obj_add_style(lbl, &style_small, 0);
-    lv_obj_align(lbl, LV_ALIGN_TOP_LEFT, 8, 188);
+    lv_obj_align(lbl, LV_ALIGN_TOP_LEFT, 8, 170);
 
     label_sd = lv_label_create(parent);
     lv_label_set_text(label_sd, "SD IDLE");
     lv_obj_add_style(label_sd, &style_sd_rec, 0);
-    lv_obj_align(label_sd, LV_ALIGN_TOP_LEFT, 36, 186);
+    lv_obj_align(label_sd, LV_ALIGN_TOP_LEFT, 36, 168);
 
     label_csv = lv_label_create(parent);
     lv_label_set_text(label_csv, "CSV --");
     lv_obj_add_style(label_csv, &style_small, 0);
-    lv_obj_align(label_csv, LV_ALIGN_TOP_RIGHT, -8, 186);
+    lv_obj_align(label_csv, LV_ALIGN_TOP_RIGHT, -8, 168);
 
     /* --- Error counters --- */
     label_err_i2c = lv_label_create(parent);
     lv_label_set_text(label_err_i2c, "I2C:0");
     lv_obj_add_style(label_err_i2c, &style_small, 0);
-    lv_obj_align(label_err_i2c, LV_ALIGN_TOP_LEFT, 8, 208);
+    lv_obj_align(label_err_i2c, LV_ALIGN_TOP_LEFT, 8, 196);
 
     label_err_sd = lv_label_create(parent);
     lv_label_set_text(label_err_sd, "SD:0");
     lv_obj_add_style(label_err_sd, &style_small, 0);
-    lv_obj_align(label_err_sd, LV_ALIGN_TOP_LEFT, 68, 208);
+    lv_obj_align(label_err_sd, LV_ALIGN_TOP_LEFT, 68, 196);
 
     label_err_queue = lv_label_create(parent);
     lv_label_set_text(label_err_queue, "Q:0");
     lv_obj_add_style(label_err_queue, &style_small, 0);
-    lv_obj_align(label_err_queue, LV_ALIGN_TOP_LEFT, 120, 208);
+    lv_obj_align(label_err_queue, LV_ALIGN_TOP_LEFT, 120, 196);
+
+    /* Page switch button */
+    lv_obj_t *btn_page = lv_btn_create(parent);
+    lv_obj_set_size(btn_page, 120, 44);
+    lv_obj_align(btn_page, LV_ALIGN_BOTTOM_MID, 0, -26);
+    lv_obj_set_style_bg_color(btn_page, lv_color_hex(UI_COLOR_BLUE), 0);
+    lv_obj_set_style_bg_opa(btn_page, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_width(btn_page, 2, 0);
+    lv_obj_set_style_border_color(btn_page, lv_color_hex(UI_COLOR_TEXT), 0);
+    lv_obj_set_style_radius(btn_page, 8, 0);
+    lv_obj_add_event_cb(btn_page, touch_event_cb, LV_EVENT_CLICKED, NULL);
+    lv_obj_t *btn_label = lv_label_create(btn_page);
+    lv_label_set_text(btn_label, "WAVES >>");
+    lv_obj_set_style_text_color(btn_label, lv_color_hex(UI_COLOR_TEXT), 0);
+    lv_obj_set_style_text_font(btn_label, &lv_font_montserrat_14, 0);
+    lv_obj_center(btn_label);
 
     /* Page indicator */
     label_page = lv_label_create(parent);
@@ -579,11 +580,9 @@ static void create_page_main(lv_obj_t *parent)
     lv_obj_align(label_page, LV_ALIGN_BOTTOM_MID, 0, -4);
 
     /* Save references */
-    label_session = sess;
-    label_title   = title;
+    label_title = title;
 
-    /* Start timers */
-    lv_timer_create(ui_fast_update_cb, UI_FAST_REFRESH_MS, NULL);
+    /* timer created once in APP_LVGL_Init */
 }
 
 /*-----------------------------------------------------------
@@ -684,13 +683,28 @@ static void create_page_waves(lv_obj_t *parent)
     lv_obj_set_style_bg_color(bar_mic_vol, lv_color_hex(UI_COLOR_BAR_MIC), LV_PART_INDICATOR);
 
     /* Page indicator */
+    /* Page switch button */
+    lv_obj_t *btn_page2 = lv_btn_create(parent);
+    lv_obj_set_size(btn_page2, 120, 44);
+    lv_obj_align(btn_page2, LV_ALIGN_BOTTOM_MID, 0, -26);
+    lv_obj_set_style_bg_color(btn_page2, lv_color_hex(UI_COLOR_BLUE), 0);
+    lv_obj_set_style_bg_opa(btn_page2, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_width(btn_page2, 2, 0);
+    lv_obj_set_style_border_color(btn_page2, lv_color_hex(UI_COLOR_TEXT), 0);
+    lv_obj_set_style_radius(btn_page2, 8, 0);
+    lv_obj_add_event_cb(btn_page2, touch_event_cb, LV_EVENT_CLICKED, NULL);
+    lv_obj_t *btn_label2 = lv_label_create(btn_page2);
+    lv_label_set_text(btn_label2, "<< BACK");
+    lv_obj_set_style_text_color(btn_label2, lv_color_hex(UI_COLOR_TEXT), 0);
+    lv_obj_set_style_text_font(btn_label2, &lv_font_montserrat_14, 0);
+    lv_obj_center(btn_label2);
+
+    /* Page indicator */
     label_page = lv_label_create(parent);
     lv_label_set_text(label_page, "[2/2]");
     lv_obj_add_style(label_page, &style_small, 0);
     lv_obj_align(label_page, LV_ALIGN_BOTTOM_MID, 0, -4);
-
-    /* Start wave timer */
-    lv_timer_create(ui_wave_update_cb, UI_WAVE_REFRESH_MS, NULL);
+    /* timer created once in APP_LVGL_Init */
 }
 
 /*-----------------------------------------------------------
@@ -703,7 +717,7 @@ static void touch_event_cb(lv_event_t *e)
     s_last_touch_tick = HAL_GetTick();
     set_backlight_state(1U);
 
-    if (code == LV_EVENT_CLICKED || code == LV_EVENT_PRESSED) {
+    if (code == LV_EVENT_CLICKED) {
         s_page = (s_page + 1) % PAGE_COUNT;
 
         /* Clear and recreate */
@@ -747,12 +761,15 @@ void APP_LVGL_Init(void)
     lv_obj_clear_flag(scr, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_add_style(scr, &style_screen, 0);
 
-    /* Touch for page switching */
-    lv_obj_add_event_cb(scr, touch_event_cb, LV_EVENT_ALL, NULL);
+    /* Buttons handle page switching */
 
     /* Create main page */
     s_page = 0;
     create_page_main(scr);
+
+    /* Create timers once - they handle both pages */
+    lv_timer_create(ui_fast_update_cb, UI_FAST_REFRESH_MS, NULL);
+    lv_timer_create(ui_wave_update_cb, UI_WAVE_REFRESH_MS, NULL);
 }
 
 void App_LVGL_TestUI(void)
@@ -763,13 +780,38 @@ void App_LVGL_TestUI(void)
 
 void APP_LVGL_Process(void)
 {
-    /* v0.4 demo: keep backlight always on */
+    /* Wake on touch when backlight off */
+    if (!s_backlight_on) {
+        if (HAL_GPIO_ReadPin(INT_TOUCH_GPIO_Port, INT_TOUCH_Pin) == GPIO_PIN_RESET) {
+            APP_LVGL_NotifyTouchActivity();
+        }
+    }
+
+    /* Auto-off after idle timeout */
+    if (s_backlight_on && (HAL_GetTick() - s_last_touch_tick) >= UI_BACKLIGHT_IDLE_MS) {
+        set_backlight_state(0U);
+    }
+
+    /* KEY button page switch */
+    if (g_demo_page_switch) {
+        g_demo_page_switch = 0U;
+        s_last_touch_tick = HAL_GetTick();
+        set_backlight_state(1U);
+        s_page = (s_page + 1) % PAGE_COUNT;
+        lv_obj_clean(scr);
+        if (s_page == 0) {
+            create_page_main(scr);
+        } else {
+            create_page_waves(scr);
+        }
+    }
+
     lv_timer_handler();
 }
 
 uint32_t APP_LVGL_GetProcessDelayMs(void)
 {
-    return 10U;  /* v0.4 demo: always fast refresh */
+    return s_backlight_on ? 10U : 100U;
 }
 
 /* ===== USB Info press count (kept for backward compat) ===== */

@@ -66,12 +66,12 @@ extern volatile uint8_t ble_rx_flag;
 extern UART_HandleTypeDef huart1;
 extern DMA_HandleTypeDef hdma_usart1_rx;
 
-TaskHandle_t EcgTaskHandle = NULL;             /* ECG浠诲姟鍙ユ焺, 渚汭SR鐩存帴閫氱煡 */
-TaskHandle_t PpgTaskHandle = NULL;             /* PPG浠诲姟鍙ユ焺 */
-TaskHandle_t ImuTaskHandle = NULL;             /* IMU浠诲姟鍙ユ焺 */
-TaskHandle_t LvglTaskHandle = NULL;             /* LVGL浠诲姟鍙ユ焺, 渚汭SR閫氱煡 */
+TaskHandle_t EcgTaskHandle = NULL;             /* ECG?????????, ???SR????????? */
+TaskHandle_t PpgTaskHandle = NULL;             /* PPG????????? */
+TaskHandle_t ImuTaskHandle = NULL;             /* IMU????????? */
+TaskHandle_t LvglTaskHandle = NULL;             /* LVGL?????????, ???SR?????*/
 
-/* ECG 涓存椂 RAM 缂撳瓨 (鐭湡瑙傚療鐢紝涓嶇敤浣滈暱鏈熷瓨锟? */
+/* ECG ?????RAM ?????(????????????????????????????? */
 #define ECG_BUFFER_SIZE 10240
 int16_t ecg_buffer[ECG_BUFFER_SIZE];
 volatile uint32_t ecg_buf_idx = 0;
@@ -82,7 +82,7 @@ typedef enum {
 } SysState_t;
 
 volatile SysState_t g_sys_state = SYS_STATE_IDLE;
-/* USB TX 缁熻璁℃暟锟?*/
+/* USB TX ???????????*/
 volatile uint32_t usb_tx_ok_count = 0;
 volatile uint32_t usb_tx_busy_count = 0;
 volatile uint32_t usb_tx_drop_count = 0;
@@ -112,10 +112,10 @@ static uint16_t s_usb_log_pending_len = 0;
 static uint32_t s_usb_log_pending_tick = 0;
 static uint8_t s_usb_log_flushing = 0;
 
-/* 浠诲姟鍒涘缓閿欒鎺╃爜 (bit0=LVGL, bit1=Sensor, bit2=SDWriter, bit3=USBDump, bit4=Audio, bit5=Button, bit6=BLE) */
+/* ?????????????????? (bit0=LVGL, bit1=Sensor, bit2=SDWriter, bit3=USBDump, bit4=Audio, bit5=Button, bit6=BLE) */
 volatile uint32_t g_task_create_error = 0;
 
-/* === MAX30102 涓柇/FIFO 璇婃柇鍙橀噺 (Sensor 浠诲姟鍐欏叆, LCD 璇诲彇) === */
+/* === MAX30102 ?????FIFO ??????????(Sensor ?????????, LCD ????? === */
 volatile uint8_t g_ppg_ie1      = 0;  /* INTERRUPT_ENABLE1 readback */
 volatile uint8_t g_ppg_is1      = 0;  /* INTERRUPT_STATUS1 readback */
 volatile uint8_t g_ppg_fifo_wr  = 0;  /* FIFO_WR_POINTER & 0x1F */
@@ -559,10 +559,10 @@ void MX_FREERTOS_Init(void) {
   /* creation of Task_Button */
   Task_ButtonHandle = osThreadNew(StartTask_Button, NULL, &Task_Button_attributes);
 
-  /* PPG 閲囬泦浠诲姟 */
+  /* PPG ????????? */
   Task_PPGHandle = ECG_DEBUG_ENABLE_PPG ? osThreadNew(StartTask_PPG, NULL, &Task_PPG_attributes) : NULL;
 
-  /* IMU 閲囬泦浠诲姟 */
+  /* IMU ????????? */
   Task_IMUHandle = ECG_DEBUG_ENABLE_ICM ? osThreadNew(StartTask_IMU, NULL, &Task_IMU_attributes) : NULL;
 
   /* USER CODE BEGIN RTOS_THREADS */
@@ -575,11 +575,11 @@ void MX_FREERTOS_Init(void) {
   Task_AudioHandle = RECORD_DIAG_AUDIO_TASK_CREATE ? osThreadNew(StartTask_Audio, NULL, &Task_Audio_attributes) : NULL;
   if (RECORD_DIAG_AUDIO_TASK_CREATE && Task_AudioHandle == NULL) g_task_create_error |= (1UL << 4);
 
-  /* 澶氫紶鎰熷櫒 SD Writer (鍙栦唬鏃х殑 ECG_SDWriter) */
+  /* ????????? SD Writer (?????????ECG_SDWriter) */
   Task_MultiSensor_SDWriterHandle = osThreadNew(StartTask_MultiSensor_SDWriter, NULL, &Task_MultiSensor_SDWriter_attributes);
   if (Task_MultiSensor_SDWriterHandle == NULL) g_task_create_error |= (1UL << 2);
 
-  /* PPG INT 璇婃柇 SD Writer */
+  /* PPG INT ?????SD Writer */
   Task_PPGDiagWriterHandle = ECG_DEBUG_ISOLATE_TASKS ? NULL : osThreadNew(StartTask_PPGDiagWriter, NULL, &Task_PPGDiagWriter_attributes);
   if (!ECG_DEBUG_ISOLATE_TASKS && Task_PPGDiagWriterHandle == NULL) g_task_create_error |= (1UL << 8);
 
@@ -594,19 +594,19 @@ void StartTask_LVGL(void *argument)
   (void)argument;
   LvglTaskHandle = xTaskGetCurrentTaskHandle();
 
-  /* 1. 绛夊緟 USB 鏋氫妇瀹屾垚 */
+  /* 1. ?????USB ??????????*/
   osDelay(2000);
 
-  /* 2. 鍚姩钃濈墮 UART 绌洪棽涓柇 DMA 鎺ユ敹 */
+  /* 2. ????????? UART ????????? DMA ?????*/
 #if !ECG_DEBUG_ISOLATE_TASKS
   HAL_UARTEx_ReceiveToIdle_DMA(&huart1, ble_rx_buf, BLE_RX_BUF_SIZE);
   __HAL_DMA_DISABLE_IT(&hdma_usart1_rx, DMA_IT_HT);
 #endif
 
-  /* 3. USB CDC 灏辩华锛圴1 鍏抽棴 USB 鏃ュ織锟?*/
+  /* 3. USB CDC ???????? ?????USB ???????*/
   APP_USB_LOG("\r\n[SYS] RTOS Started, USB CDC Ready!\r\n");
 
-  /* 4. 鍒濆锟?LVGL 鏄剧ず + V1 ECG 鎺у埗鐣岄潰 */
+  /* 4. ???????LVGL ?????+ V1 ECG ?????????*/
   Safe_USB_Printf("[LVGL] APP_LVGL_Init start\r\n");
   APP_LVGL_Init();
   Safe_USB_Printf("[LVGL] APP_LVGL_Init done\r\n");
@@ -639,12 +639,12 @@ void StartTask_Sensor(void *argument)
 
   osDelay(3000);
 
-  /* SD debug log 锟?蹇呴』锟?RTOS 杩愯鍚庢墠鑳藉畨鍏ㄨ皟锟?f_mount */
+  /* SD debug log ?????????RTOS ????????????????????f_mount */
   SD_DebugLog_Init();
 
   APP_USB_LOG("[ECG_V1] Sensor task started\r\n");
 
-  /* I2C3 浼犳劅鍣ㄤ竴娆℃€у垵濮嬪寲銆傚厛鍒濆锟?ICM锛岄伩锟?PPG/TXS 寮傚父褰卞搷宸查獙璇佺殑 IMU 鍩虹嚎锟?*/
+  /* I2C3 ????????????????????????????????ICM???????PPG/TXS ?????????????????? IMU ???????*/
   MAX30102_InitResult_t ppg_ret;
   uint8_t icm_ret;
 #if ECG_DEBUG_ENABLE_ICM
@@ -675,7 +675,7 @@ void StartTask_Sensor(void *argument)
   }
   g_ppg_init_ret = (uint32_t)ppg_ret;
   if (ppg_ret != MAX30102_INIT_OK) {
-      /* PPG 澶辫触鏃堕噸锟?STM32 锟?I2C3锛岄伩鍏嶅け璐ヤ簨鍔℃畫鐣欏奖鍝嶅悗锟?ICM 杩愯鏈熻鏁帮拷?*/
+      /* PPG ???????????STM32 ??I2C3?????????????????????????????ICM ??????????????*/
       APP_I2C3_BusRecover();
   }
 #else
@@ -687,8 +687,8 @@ void StartTask_Sensor(void *argument)
   Safe_USB_Printf("\r\n[SENSOR_INIT]\r\n");
   if (ppg_ret == MAX30102_INIT_OK) {
       Safe_USB_Printf("[MAX30102] I2C CALL OK, INIT OK\r\n");
-      /* 杞鎺㈤拡宸插畬鎴愪娇鍛斤紝璇佹槑纭欢閾捐矾閫氥€傜幇鍦ㄦ敞閲婃帀锛岄伩鍏嶉樆锟?RTOS 璋冨害锟?
-       * 閬楃暀涓柇鐢卞悗锟?recording start 娴佺▼锟?INT_STATUS1 閲婃斁寮曡剼锟?*/
+      /* ????????????????????????????????????????????????????????????????RTOS ???????
+       * ????????????????recording start ???????INT_STATUS1 ???????????*/
       // MAX30102_Debug_Poll_INT_Pin();
   }
   else if (ppg_ret == MAX30102_INIT_NOT_FOUND)
@@ -719,12 +719,12 @@ void StartTask_Sensor(void *argument)
       SD_DebugLog_WriteLine(icm_err);
   }
 
-  /* ICM20948 涓柇鏍囧織+寮曡剼鐢靛钩楠岃瘉 锟?浠呭湪 ICM 鍒濆鍖栨垚鍔熷悗鎵ц涓€锟?*/
+  /* ICM20948 ?????????+?????????????????????ICM ???????????????????????*/
   if (!ECG_DEBUG_ISOLATE_TASKS && ECG_DEBUG_ENABLE_ICM && icm_ret == 0) {
       APP_ICM20948_IntFlagAndPinLevelCheck();
   }
 
-  /* ECG 鍒濆鍖栫収鏃э紝涓嶅彈 PPG/ICM 褰卞搷 */
+  /* ECG ??????????????????PPG/ICM ?????*/
   if (RECORD_RATE_ISO_ENABLE_ECG) {
     Safe_USB_Printf("[SENSOR] before MAX30003_Init\r\n");
     MAX30003_Init();
@@ -745,7 +745,7 @@ void StartTask_Sensor(void *argument)
   SD_DebugLog_WriteLine("MAX30003_INIT_DONE");
   Safe_USB_Printf("[SENSOR] after MAX30003_INIT_DONE log\r\n");
 
-  /* 鍒濆涓嶉噰锟?*/
+  /* ???????????*/
   ecg_streaming = 0;
   g_sys_state = SYS_STATE_IDLE;
   uint8_t finalize_after_stop = 0;
@@ -778,7 +778,7 @@ void StartTask_Sensor(void *argument)
 
         MultiSensorLogger_ResetForNewRecording();
 
-        /* 绛夊緟 MSWriter 鎵撳紑鏂囦欢锛屾渶锟?3000ms */
+        /* ?????MSWriter ????????????????3000ms */
         uint32_t t0 = HAL_GetTick();
         while (!g_ecg_rec.sd_file_opened && (HAL_GetTick() - t0 < 3000)) {
             osDelay(10);
@@ -792,7 +792,7 @@ void StartTask_Sensor(void *argument)
             g_ecg_rec.auto_stop_ms = 0;
             g_sys_state = SYS_STATE_IDLE;
             continue;
-            /* 璋冭瘯妯″紡锛氭病锟?SD 涔熺户缁惎鍔ㄦ祦锛屼互渚胯娴嬮噰鏍风巼 */
+            /* ????????????????SD ????????????????????????????????*/
         }
 
         Session_Create(HAL_GetTick());
@@ -824,7 +824,7 @@ void StartTask_Sensor(void *argument)
         __HAL_GPIO_EXTI_CLEAR_IT(PPG_INT_Pin);
         __HAL_GPIO_EXTI_CLEAR_IT(ICM_INT_Pin);
 
-        // [DEBUG] 璺宠繃 PPG/ICM I2C 鎿嶄綔浠ユ帓锟?I2C NACK 闂
+        // [DEBUG] ?????PPG/ICM I2C ???????????I2C NACK ?????
         // {
         //     uint8_t s1, s2;
         //     MAX30102_ClearInterruptStatus(&s1, &s2);
@@ -855,7 +855,7 @@ void StartTask_Sensor(void *argument)
         ppg_irq_count = 0;
         APP_Reset_RateIsoDiag();
         APP_Log_RateIsoConfig_To_SD();
-        /* AudioTask stays at creation priority Normal1 锟斤拷 must be below SensorTask AboveNormal */
+        /* AudioTask stays at creation priority Normal1 ?????must be below SensorTask AboveNormal */
         (void)Task_AudioHandle;
         if (RECORD_RATE_ISO_ENABLE_ECG) {
           Safe_USB_Printf("[REC] before MAX30003_StartStream tick=%lu\r\n",
@@ -888,7 +888,7 @@ void StartTask_Sensor(void *argument)
       }
     }
 
-    /* 璋冭瘯锛氳嚜鍔ㄥ仠姝㈣锟?*/
+    /* ????????????????????*/
     if (g_ecg_rec.auto_stop_ms > 0 &&
         g_ecg_rec.state == ECG_REC_RECORDING) {
         if (HAL_GetTick() - g_ecg_rec.start_tick >= g_ecg_rec.auto_stop_ms) {
@@ -918,7 +918,7 @@ void StartTask_Sensor(void *argument)
         }
         APP_I2C3_ReleaseDiag(1U, i2c_stop_t);
 
-        // [DEBUG] 璺宠繃 I2C 鎿嶄綔閬垮厤 NACK 鎸傛
+        // [DEBUG] ?????I2C ????????? NACK ?????
         // MAX30102_DisableInterrupts();
 
         MultiSensorLogger_RequestStopAndFlush();
@@ -958,7 +958,7 @@ void StartTask_Sensor(void *argument)
     }
 
             if (ecg_streaming && g_ecg_rec.state == ECG_REC_RECORDING) {
-        /* DIAG: checkpoint 锟斤拷 time since last recording loop entry */
+        /* DIAG: checkpoint ?????time since last recording loop entry */
         {
             static uint32_t _last_rec_entry_tick = 0;
             uint32_t _now_entry = HAL_GetTick();
@@ -1002,7 +1002,7 @@ void StartTask_Sensor(void *argument)
         osDelay(20);
       }
 
-    /* 浣庨杞鐢垫瀬鐘讹拷?(4Hz)锛孖dle 涔熸寔缁锟?*/
+    /* ???????????????????(4Hz)???dle ???????????*/
     static uint32_t last_lead_poll = 0;
     if (HAL_GetTick() - last_lead_poll >= 250) {
         last_lead_poll = HAL_GetTick();
@@ -1031,7 +1031,7 @@ void StartTask_Sensor(void *argument)
 
     APP_USB_LogFlush(0);
 
-    /* PPG INT 璇婃柇 SD 閲囬泦 锟?锟?200ms 璁板綍涓€鏉″埌 ppg_int_diag.csv */
+    /* PPG INT ?????SD ?????????200ms ???????????? ppg_int_diag.csv */
     static uint32_t last_ppg_diag_tick = 0;
     static uint32_t ppg_diag_seq = 0;
     if (!ECG_DEBUG_ISOLATE_TASKS &&
@@ -1114,7 +1114,7 @@ void StartTask_PPG(void *argument)
       }
     }
 
-    /* 姣忕蹇冭烦 (debug_log, 涓嶉€氳繃 USB) */
+    /* ????????? (debug_log, ????????USB) */
     if (HAL_GetTick() - last_heartbeat >= 1000) {
       last_heartbeat = HAL_GetTick();
       char hb[128];
@@ -1219,24 +1219,17 @@ void StartTask_Audio(void *argument)
 void StartTask_Button(void *argument)
 {
   /* USER CODE BEGIN StartTask_Button */
+  /* USER CODE BEGIN StartTask_Button */
   (void)argument;
   uint8_t prev = 1;
+  extern volatile uint8_t g_demo_page_switch;
 
   for(;;) {
       uint8_t curr = HAL_GPIO_ReadPin(KEY_BTN_GPIO_Port, KEY_BTN_Pin);
 
       if (prev == 1 && curr == 0) {
-          uint8_t wake_only = APP_LVGL_NotifyTouchActivity();
-          if (!wake_only) {
-              /* 鐗╃悊鎸夐敭锛歵oggle start/stop */
-              if (g_ecg_rec.state == ECG_REC_IDLE ||
-                  g_ecg_rec.state == ECG_REC_STOPPED ||
-                  g_ecg_rec.state == ECG_REC_ERROR) {
-                  ECG_RequestStart();
-              } else if (g_ecg_rec.state == ECG_REC_RECORDING) {
-                  ECG_RequestStop();
-              }
-          }
+          APP_LVGL_NotifyTouchActivity();
+          g_demo_page_switch = 1U;
       }
       prev = curr;
       osDelay(10);
@@ -1255,14 +1248,14 @@ void StartTask_BLE(void *argument)
 
   for(;;) {
     if (ble_rx_flag) {
-      /* 确保字符串终止 */
+      /* ???????????*/
       if (ble_rx_len < BLE_RX_BUF_SIZE) {
         ble_rx_buf[ble_rx_len] = '\0';
       } else {
         ble_rx_buf[BLE_RX_BUF_SIZE - 1] = '\0';
       }
 
-      /* 解析并处理命令 (按行分割) */
+      /* ???????????(??????) */
       uint16_t line_start = 0;
       for (uint16_t i = 0; i < ble_rx_len; i++) {
         if (ble_rx_buf[i] == '\r' || ble_rx_buf[i] == '\n') {
@@ -1271,7 +1264,7 @@ void StartTask_BLE(void *argument)
             BLE_SM_ProcessLine((const char *)&ble_rx_buf[line_start], line_len);
           }
           line_start = i + 1;
-          /* 跳过 \r\n 成对出现的情况 */
+          /* ??? \r\n ???????????*/
           if (ble_rx_buf[i] == '\r' && (i + 1) < ble_rx_len && ble_rx_buf[i + 1] == '\n') {
             i++;
             line_start = i + 1;
@@ -1289,7 +1282,7 @@ void StartTask_BLE(void *argument)
 }
 
 /*
- * BLE UART发送回调 - 供 ble_state_machine.c 调用
+ * BLE UART???????- ??ble_state_machine.c ???
  */
 void BLE_SM_Send(const char *data)
 {
@@ -1304,10 +1297,10 @@ void BLE_SM_Send(const char *data)
 /* USER CODE BEGIN Application */
 
 /**
-  * @brief  ICM20948 涓柇鏍囧織+寮曡剼鐢靛钩鏈€灏忛獙锟?锟?PIN鈫扴T1鈫扨IN 椤哄簭锟?
-  * @note   鍦ㄩ攣瀛樻ā寮忎笅鍏堣 PH1 鐢靛钩鍐嶈 INT_STATUS_1 鍐嶈 PH1 鐢靛钩锟?
-  *         閬垮厤璇荤姸鎬佸瘎瀛樺櫒鎰忓娓呴櫎閿佸瓨涓柇鍚庡紩鑴氭仮澶嶉珮锟?
-  *         缁撴灉杈撳嚭锟?SD debug_log 锟?USB CDC (涓€娆★拷?锟?
+  * @brief  ICM20948 ?????????+?????????????????????PIN???T1???IN ???????
+  * @note   ?????????????????? PH1 ????????? INT_STATUS_1 ?????PH1 ???????
+  *         ????????????????????????????????????????????????????
+  *         ???????????SD debug_log ??USB CDC (??????????
   */
 static void APP_ICM20948_IntFlagAndPinLevelCheck(void)
 {
@@ -1330,16 +1323,16 @@ static void APP_ICM20948_IntFlagAndPinLevelCheck(void)
     SD_DebugLog_WriteLine("ICM_INT_FLAG_PIN_CHECK_BEGIN");
     Safe_USB_Printf("\r\n[ICM_INT_FLAG_PIN_CHECK_BEGIN]\r\n");
 
-    /* 1. 鍏抽棴鏃т腑鏂苟娓呮棫鐘讹拷?*/
+    /* 1. ???????????????????????*/
     ICM20948_DisableDataReadyInterrupt();
     ICM20948_ClearInterruptStatus();
     osDelay(20);
 
-    /* 2. 寮€鍚攣瀛樺紡 Data Ready 涓柇 */
+    /* 2. ?????????????Data Ready ?????*/
     ICM20948_EnableLatchedDataReadyInterrupt_Debug();
     osDelay(5);
 
-    /* 3. 璇诲洖纭閿佸瓨閰嶇疆鏄惁鐢熸晥 */
+    /* 3. ??????????????????????????? */
     cfg_after_enable = ICM20948_ReadBank0Reg_Debug(0x0F); // INT_PIN_CFG
     en1_after_enable = ICM20948_ReadBank0Reg_Debug(0x11); // INT_ENABLE_1
 
@@ -1350,7 +1343,7 @@ static void APP_ICM20948_IntFlagAndPinLevelCheck(void)
     SD_DebugLog_WriteLine(line);
     Safe_USB_Printf("%s\r\n", line);
 
-    /* 4. 璁板綍绛夊緟鍓嶇殑寮曡剼鍜孖RQ璁℃暟 */
+    /* 4. ?????????????????????RQ?????*/
     pin_before_wait = HAL_GPIO_ReadPin(ICM_INT_GPIO_Port, ICM_INT_Pin);
     irq_before = icm_irq_count;
 
@@ -1361,10 +1354,10 @@ static void APP_ICM20948_IntFlagAndPinLevelCheck(void)
     SD_DebugLog_WriteLine(line);
     Safe_USB_Printf("%s\r\n", line);
 
-    /* 5. 绛夊緟 Data Ready 浜х敓 (50Hz ODR, 120ms鍐呭簲鏈夊锟? */
+    /* 5. ?????Data Ready ???? (50Hz ODR, 120ms??????????? */
     osDelay(120);
 
-    /* 6. 鏍稿績楠岃瘉: 鍏堣PIN, 鍐嶈ST1, 鍐嶈PIN */
+    /* 6. ?????????: ?????IN, ?????T1, ?????IN */
     pin_before_st1 = HAL_GPIO_ReadPin(ICM_INT_GPIO_Port, ICM_INT_Pin);
 
     st1 = ICM20948_ReadBank0Reg_Debug(0x1A);  // INT_STATUS_1
@@ -1383,7 +1376,7 @@ static void APP_ICM20948_IntFlagAndPinLevelCheck(void)
     SD_DebugLog_WriteLine(line);
     Safe_USB_Printf("%s\r\n", line);
 
-    /* 7. 缁撴潫鍚庡叧闂腑鏂苟娓呯姸锟?*/
+    /* 7. ?????????????????????????*/
     ICM20948_DisableDataReadyInterrupt();
     ICM20948_ClearInterruptStatus();
 
@@ -1392,9 +1385,9 @@ static void APP_ICM20948_IntFlagAndPinLevelCheck(void)
 }
 
 /**
-  * @brief  PPG INT 璇婃柇閲囬泦 锟?SD 闃熷垪
-  * @note   150ms 鍛ㄦ湡璋冪敤銆傚厛璇诲紩鑴氱數锟?锟?锟?STATUS1 锟?鍐嶈寮曡剼鐢靛钩锟?
-  *         璇诲彇 STATUS1 浼氭竻闄ゅ搴斾腑鏂姸鎬侊紙浠呯敤浜庤皟璇曪級锟?
+  * @brief  PPG INT ????????? ??SD ?????
+  * @note   150ms ?????????????????????????????STATUS1 ??????????????????
+  *         ?????STATUS1 ??????????????????????????????????????
   */
 static void APP_Log_PPG_INT_Diag_To_SD(uint32_t seq)
 {
@@ -1406,19 +1399,19 @@ static void APP_Log_PPG_INT_Diag_To_SD(uint32_t seq)
 
     extern volatile uint32_t ppg_irq_count;
 
-    /* 1. 鍏堣 PPG_INT 寮曡剼鐢靛钩 */
+    /* 1. ?????PPG_INT ????????? */
     GPIO_PinState s = HAL_GPIO_ReadPin(PPG_INT_GPIO_Port, PPG_INT_Pin);
     rec.data.ppg_int_diag.pin_before = (s == GPIO_PIN_SET) ? 1 : 0;
     rec.data.ppg_int_diag.irq_count  = ppg_irq_count;
 
-    /* 2. 锟?I2C 瀵勫瓨锟?*/
+    /* 2. ??I2C ???????*/
     uint8_t ie1 = 0xEE, status1 = 0xEE, wr = 0xEE, rd = 0xEE, ov = 0xEE;
 
     MAX30102_ReadBuffer(INTERRUPT_ENABLE1, &ie1, 1);
 
     /*
-     * NOTE: 璇诲彇 INTERRUPT_STATUS1 浼氭竻闄ゅ搴斾腑鏂姸鎬佸苟閲婃斁 INT 寮曡剼锟?
-     * 鍚庣画姝ｅ紡涓柇閲囬泦鐗堟湰涓紝搴旈伩鍏嶅湪闈炰簨浠跺鐞嗗棰戠箒璇诲彇 STATUS1锟?
+     * NOTE: ?????INTERRUPT_STATUS1 ??????????????????????????? INT ???????
+     * ???????????????????????????????????????????????????????????STATUS1??
      */
     MAX30102_ReadBuffer(INTERRUPT_STATUS1, &status1, 1);
 
@@ -1432,16 +1425,16 @@ static void APP_Log_PPG_INT_Diag_To_SD(uint32_t seq)
     rec.data.ppg_int_diag.fifo_rd = rd & 0x1F;
     rec.data.ppg_int_diag.fifo_ov = ov & 0x1F;
 
-    /* 3. 璇诲彇 STATUS1 鍚庯紝绔嬪嵆鍐嶆璇诲紩鑴氱數锟?*/
+    /* 3. ?????STATUS1 ?????????????????????????*/
     s = HAL_GPIO_ReadPin(PPG_INT_GPIO_Port, PPG_INT_Pin);
     rec.data.ppg_int_diag.pin_after = (s == GPIO_PIN_SET) ? 1 : 0;
 
-    /* 4. 锟?SD 闃熷垪锛屽紓姝ュ啓锟?*/
+    /* 4. ??SD ????????????????*/
     PPGDiag_Enqueue(&rec);
 }
 
 /**
-  * @brief  Producer: 锟?ECG 鏍锋湰瀛樺叆 RAM buffer 锟?SD 闃熷垪
+  * @brief  Producer: ??ECG ??????????RAM buffer ??SD ?????
   */
 void Packagedata_AddEcgSample(int16_t ecg)
 {
@@ -1457,7 +1450,7 @@ void Packagedata_AddEcgSample(int16_t ecg)
 #endif
 
   if (g_sys_state == SYS_STATE_RECORDING) {
-    /* RAM 缂撳瓨锛堢煭鏈熻瀵燂級 */
+    /* RAM ???????????????????*/
     if (ecg_buf_idx < ECG_BUFFER_SIZE) {
       ecg_buffer[ecg_buf_idx++] = ecg;
     }
@@ -1470,15 +1463,15 @@ void Packagedata_AddEcgSample(int16_t ecg)
     return;
 #endif
 
-    /* 澶氫紶鎰熷櫒 block logger (鍙栦唬锟?ECG_SDLogger_Enqueue) */
+    /* ????????? block logger (???????ECG_SDLogger_Enqueue) */
     MultiSensorLogger_AddECG(ecg);
   }
 }
 
 /**
-  * @brief  Safe_USB_Printf 锟?璋冭瘯鏃ュ織鎵撳嵃
-  * @note   浣跨敤 CDC_Transmit_FS_Blocking 闃诲鍙戦€侊紝锟?200ms 瓒呮椂锟?
-  *         浠呭湪閲囨牱鍋滄鍚庝娇鐢紝閲囨牱杩涜涓笉瑕侀珮棰戣皟鐢拷?
+  * @brief  Safe_USB_Printf ????????????????
+  * @note   ?????CDC_Transmit_FS_Blocking ??????????????200ms ???????
+  *         ??????????????????????????????????????????????????
   */
 static void APP_USB_LogFlush(uint8_t force)
 {
@@ -1572,9 +1565,9 @@ void Safe_USB_Printf(const char *format, ...)
 
   if (format == NULL) return;
 
-  /* USB 鏈厤缃椂鐩存帴涓㈠純 */
+  /* USB ?????????????????? */
 
-  /* 鏍煎紡锟?*/
+  /* ???????*/
   va_list args;
   va_start(args, format);
   int len = vsnprintf(buf, sizeof(buf), format, args);
@@ -1586,7 +1579,7 @@ void Safe_USB_Printf(const char *format, ...)
     buf[len] = '\0';
   }
 
-  /* 闃诲鍙戯拷?(200ms 瓒呮椂) */
+  /* ??????????(200ms ????? */
   if ((uint32_t)len > USB_LOG_PENDING_SIZE) {
     usb_tx_drop_count++;
     return;
@@ -1613,7 +1606,7 @@ void Safe_USB_Printf(const char *format, ...)
   memcpy(s_usb_log_pending + s_usb_log_pending_len, buf, (size_t)len);
   s_usb_log_pending_len = (uint16_t)(s_usb_log_pending_len + len);
 
-  /* SD 闂瀹氫綅闃舵锛氭瘡鏉℃棩蹇楅兘灏藉揩鎺ㄥ嚭鍘伙紝閬垮厤灏忓寘闀挎湡鐣欏湪缂撳啿閲岋拷?*/
+  /* SD ?????????????????????????????????????????????????????????????????????*/
   if (s_usb_log_pending_len >= 96U ||
       (HAL_GetTick() - s_usb_log_pending_tick) >= 100U) {
     APP_USB_LogFlush(0);

@@ -87,7 +87,7 @@ void MX_GPIO_Init(void)
   /*Configure GPIO pin : KEY_BTN_Pin */
   GPIO_InitStruct.Pin = KEY_BTN_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
   HAL_GPIO_Init(KEY_BTN_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pins : LCD_RST_Pin RST_TOUCH_Pin */
@@ -174,7 +174,7 @@ void MX_GPIO_Init(void)
   GPIO_InitStruct.Alternate = GPIO_AF0_MCO;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /* ECG_INT_Pin — 保留原 EXTI 下降沿中断配置 */
+  /* ECG_INT_Pin �?保留�?EXTI 下降沿中断配�?*/
   GPIO_InitStruct.Pin = ECG_INT_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
